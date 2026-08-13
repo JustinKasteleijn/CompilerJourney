@@ -1,0 +1,34 @@
+# Cabal
+dist-newstyle/
+dist/
+
+# GHC
+*.hi
+*.o
+*.dyn_hi
+*.dyn_o
+
+# Haskell Language Server
+.hie/
+.ghc.environment.*
+
+# Zed
+.zed/
+
+# Other editors / IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Generated compiler output
+generated/
+output/
+build/
+
+# Generated C++ files
+*.cpp
+*.hpp
