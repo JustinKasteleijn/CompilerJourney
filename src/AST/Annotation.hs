@@ -27,6 +27,10 @@ instance ShowAnn 'Parsed where
   showAnn :: Proxy 'Parsed -> Span -> String
   showAnn _ sp = "Ann (" ++ show sp ++ ")"
 
+instance ShowAnn 'Typed where
+  showAnn :: Proxy 'Typed -> (Span, Type) -> String
+  showAnn _ (sp, t) = "Ann (" ++ show sp ++ ", " ++ show t ++ ")"
+
 instance ShowAnn 'Testing where
   showAnn :: Proxy 'Testing -> () -> String
   showAnn _ _ = ""

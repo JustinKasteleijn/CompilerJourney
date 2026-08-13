@@ -7,7 +7,8 @@ module SemanticAnalysis.TypeChecker where
 import           AST.Type
 
 import           AST.Annotation           (Phase (..))
-import           AST.Argument             (getFunctionArgumentName)
+import           AST.Argument             (FuncArg (FuncArg),
+                                           getFunctionArgumentName)
 import           AST.Expr                 (BinaryOperator (..), Expr (..),
                                            OperatorKind (..),
                                            UnaryOperator (..), kindOf)
@@ -18,7 +19,7 @@ import           Control.Monad.State
 import           Data.Char                (chr, ord)
 import qualified Data.Map                 as Map
 import qualified Data.Set                 as Set
-import           Generic.Triple           (fst3)
+import           Generic.Triple           (fst3, snd3, thd3)
 
 class Types a where
   ftv   :: a -> Set.Set String
@@ -129,73 +130,79 @@ varBind u t | t == TVar u          = return mempty
 class Typeable a where
   {-# MINIMAL check | infer #-}
 
-  check :: a -> Type -> TI Subst
+  check :: a -> Type -> TI (Subst, Expr 'Typed)
   check x t = do
-    (s, t') <- infer x
+    (s, t', ast) <- infer x
     s'      <- unify t t'
-    pure (s' <> s)
+    pure (s' <> s, ast)
 
-  infer :: a -> TI (Subst, Type)
+  infer :: a -> TI (Subst, Type, Expr 'Typed)
   infer x = do
     v <- newTypeVar
-    s <- check x v
-    pure (s, apply s v )
+    (s, ast) <- check x v
+    pure (s, apply s v, ast)
 
 instance Typeable (Expr 'Parsed) where
-  infer :: Expr 'Parsed -> TI (Subst, Type)
-  infer (LInt _ _)                     = pure (mempty, TInt)
-  infer (LBool _ _)                    = pure (mempty, TBool)
-  infer (LChar _ _)                    = pure (mempty, TChar)
-  infer (LIdent _ n)                   = do
+  infer :: Expr 'Parsed -> TI (Subst, Type, Expr 'Typed)
+  infer (LInt sp n)                  = pure (mempty, TInt, LInt (sp, TInt) n)
+  infer (LBool sp b)                 = pure (mempty, TBool, LBool (sp, TBool) b)
+  infer (LChar sp c)                 = pure (mempty, TChar, LChar (sp, TChar) c)
+  infer (LIdent sp v)                = do
     env <- ask
-    case Map.lookup n env of
-      Nothing     -> throwError $ "Unbound variable " ++ n
+    case Map.lookup v env of
+      Nothing     -> throwError $ "Unbound variable " ++ v
       Just scheme -> do
         t <- instantiate scheme
-        pure (mempty, t)
-  infer (Tuple _ xs)                   = do
+        pure (mempty, t, LIdent (sp, t) v)
+  infer (Tuple sp xs)                   = do
     results <- mapM infer xs
-    let substs = map fst results
-        types  = map snd results
-    pure (mconcat substs, TTuple types)
-  infer (BinaryOperation _ lhs op rhs) = do
-    (s1, t1) <- infer lhs
-    (s2, t2) <- local (apply s1) (infer rhs)
-    t3       <- getBinaryType op
-    a        <- newTypeVar
-    s3       <- unify
-                 (apply s2 t3)
-                 (TFun [apply s2 t1, t2] a)
-    pure (mconcat [s3, s2, s1], apply s3 a)
-  infer (UnaryOperation _ op expr)     = do
-    (s1, t1) <- infer expr
-    t2       <- getUnaryType op
-    a        <- newTypeVar
-    s2       <- unify
-                 (apply s1 t2)
-                 (TFun [apply s1 t1] a)
-    return (s2 <> s1, apply s2 a)
-  infer (Lambda _ args body) = do
+    let substs = map fst3 results
+        types  = map snd3 results
+        ast    = map thd3 results
+    pure (mconcat substs, TTuple types, Tuple (sp, TTuple types) ast)
+  infer (BinaryOperation sp lhs op rhs) = do
+    (s1, t1, expr)  <- infer lhs
+    (s2, t2, expr') <- local (apply s1) (infer rhs)
+    t3              <- getBinaryType op
+    a               <- newTypeVar
+    s3              <- unify
+                         (apply s2 t3)
+                         (TFun [apply s2 t1, t2] a)
+    let t           = apply s3 a
+    pure (mconcat [s3, s2, s1], t, BinaryOperation (sp, t) expr op expr')
+  infer (UnaryOperation sp op expr)     = do
+    (s1, t1, expr') <- infer expr
+    t2              <- getUnaryType op
+    a               <- newTypeVar
+    s2              <- unify
+                        (apply s1 t2)
+                        (TFun [apply s1 t1] a)
+    let t           = apply s2 a
+    return (s2 <> s1, t, UnaryOperation (sp, t) op expr')
+  infer (Lambda sp args body) = do
     argTypes <- mapM (const newTypeVar) args
+    let typedArgs :: [FuncArg 'Typed]
+        typedArgs =
+          zipWith (\(FuncArg sp' name) ty -> FuncArg (sp', ty) name) args argTypes
     let bindings =
             Map.fromList
             [ (name, Forall [] ty)
             | (name, ty) <- zip (map getFunctionArgumentName args) argTypes
             ]
-    (s1, bodyType) <- local (Map.union bindings) (infer body)
-    pure
-        ( s1
-        , TFun (map (apply s1) argTypes) (apply s1 bodyType)
-        )
-  infer (Application _ lam exprs) = do
-    (sf, tf) <- infer lam
-    results  <- mapM infer exprs
-    retType  <- newTypeVar
-    let sargs = mconcat (map fst results)
-    let expected = TFun (map snd results) retType
-    s3 <- unify (apply sargs tf) expected
-    let s = mconcat [sf, sargs, s3]
-    pure (s, apply s retType)
+    (s1, bodyType, bodyAst) <- local (Map.union bindings) (infer body)
+    let fullType = TFun (map (apply s1) argTypes) (apply s1 bodyType)
+    pure (s1, fullType, Lambda (sp, fullType) typedArgs bodyAst)
+  infer (Application sp lam exprs) = do
+    (sf, tf, ast) <- infer lam
+    results       <- mapM infer exprs
+    retType       <- newTypeVar
+    let sargs     = mconcat (map fst3 results)
+    let expected  = TFun (map snd3 results) retType
+    let argsAst   = map thd3 results
+    s3            <- unify (apply sargs tf) expected
+    let s         = mconcat [sf, sargs, s3]
+    let t         = apply s retType
+    pure (s, t, Application (sp, t) ast argsAst)
 
 getUnaryType :: UnaryOperator -> TI Type
 getUnaryType Neg = pure $ TFun [TInt] TInt

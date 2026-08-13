@@ -2,9 +2,9 @@
 
 module ASTTest.ExprSpec (spec) where
 
-import Test.Syd
-import AST.Expr
-import AST.Annotation
+import           AST.Annotation
+import           AST.Expr
+import           Test.Syd
 
 spec :: Spec
 spec = describe "Expression show test" $ do
