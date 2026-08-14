@@ -20,6 +20,28 @@ type family Ann (p :: Phase) where
   Ann 'Typed   = (Span, Type)
   Ann 'Testing = ()
 
+class Annotated f where
+  getAnn :: f p -> Ann p
+  setAnn :: Ann p -> f p -> f p
+
+class HasSpan (p :: Phase) where
+  getSpan :: Proxy p -> Ann p -> Span
+
+instance HasSpan 'Parsed where
+  getSpan :: Proxy 'Parsed -> Ann 'Parsed -> Span
+  getSpan _ ann = ann
+
+instance HasSpan 'Typed where
+  getSpan :: Proxy 'Typed -> Ann 'Typed -> Span
+  getSpan _ = fst
+
+class HasType (p :: Phase) where
+  getType :: Proxy p -> Ann p -> Type
+
+instance HasType Typed where
+  getType :: Proxy 'Typed -> Ann 'Typed -> Type
+  getType _ = snd
+
 class ShowAnn (p :: Phase) where
   showAnn :: Proxy p -> Ann p -> String
 

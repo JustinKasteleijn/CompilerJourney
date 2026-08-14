@@ -8,8 +8,10 @@
 
 module AST.Expr where
 
-import           AST.Annotation      (Ann, Phase, ShowAnn (showAnn))
+import           AST.Annotation      (Ann, Annotated (..), HasType (getType),
+                                      Phase (..), ShowAnn (showAnn))
 import           AST.Argument        (FuncArg)
+import           AST.Type            (Type)
 import           Data.Data           (Proxy (..))
 import           Generic.DebugShow   (DebugShow (debugShow))
 import           Generic.ProgramShow (ProgramShow (programShow), indentS,
@@ -28,6 +30,32 @@ data Expr (p :: Phase)
 
   | Lambda          (Ann p) [FuncArg p] (Expr p)
   | Application     (Ann p) (Expr p) [Expr p]
+
+instance Annotated Expr where
+  getAnn :: Expr p -> Ann p
+  getAnn (LInt ann _)                = ann
+  getAnn (LChar ann _)               = ann
+  getAnn (LBool ann _)               = ann
+  getAnn (LIdent ann _)              = ann
+  getAnn (Tuple ann _)               = ann
+  getAnn (BinaryOperation ann _ _ _) = ann
+  getAnn (UnaryOperation ann _ _)    = ann
+  getAnn (Lambda ann _ _)            = ann
+  getAnn (Application ann _ _)       = ann
+
+  setAnn :: Ann p -> Expr p -> Expr p
+  setAnn ann (LInt _ n)                     = LInt ann n
+  setAnn ann (LChar _ c)                    = LChar ann c
+  setAnn ann (LBool _ b)                    = LBool ann b
+  setAnn ann (LIdent _ v)                   = LIdent ann v
+  setAnn ann (Tuple _ ts)                   = Tuple ann ts
+  setAnn ann (BinaryOperation _ lhs op rhs) = BinaryOperation ann lhs op rhs
+  setAnn ann (UnaryOperation _ op expr)     = UnaryOperation ann op expr
+  setAnn ann (Lambda _ params body)         = Lambda ann params body
+  setAnn ann (Application _ lam args)       = Application ann lam args
+
+getExprType :: forall p. HasType p => Expr p -> Type
+getExprType expr = getType (Proxy @p) (getAnn expr)
 
 data OperatorKind
   = Arithmetic
