@@ -3,7 +3,7 @@
 module Parser.ExprParser where
 
 import           AST.Annotation                  (Phase (Parsed))
-import           AST.Expr                        (BinaryOperator (..),
+import           AST.Syntax                      (BinaryOperator (..),
                                                   Expr (..), UnaryOperator (..))
 import           Parser.ParserBase
 

@@ -8,11 +8,10 @@ module SemanticAnalysis.TypeChecker where
 import           AST.Type
 
 import           AST.Annotation           (Phase (..))
-import           AST.Argument             (FuncArg (FuncArg),
-                                           getFunctionArgumentName)
-import           AST.Expr                 (BinaryOperator (..), Expr (..),
-                                           OperatorKind (..),
-                                           UnaryOperator (..), kindOf)
+import           AST.Argument             (getFunctionArgumentName)
+import           AST.Expr                 (OperatorKind (..), kindOf)
+import           AST.Syntax               (BinaryOperator (..), Expr (..),
+                                           FuncArg (..), UnaryOperator (..))
 import           Control.Monad.Except
 import           Control.Monad.RWS.Strict (MonadReader (ask, local), RWS,
                                            runRWS)
@@ -88,10 +87,10 @@ instance Types (Expr 'Typed) where
 instance Types (FuncArg 'Typed) where
   apply :: Subst -> FuncArg 'Typed -> FuncArg 'Typed
   apply s = \case
-    FuncArg (sp, t) v -> FuncArg (sp, apply s t) v
+    FuncArg (sp, t) v t' -> FuncArg (sp, apply s t) v (apply s t')
 
   ftv :: FuncArg 'Typed -> Set.Set String
-  ftv (FuncArg (_, t) _) = ftv t
+  ftv (FuncArg (_, t) _ t') = ftv t <> ftv t'
 
 newtype Subst = Subst { unSubst :: Map.Map String Type }
   deriving (Show)
@@ -222,7 +221,7 @@ instance Typeable (Expr 'Parsed) where
   infer (Lambda sp args body) = do
     argTypes <- mapM (const newTypeVar) args
     let typedArgs :: [FuncArg 'Typed]
-        typedArgs = zipWith (\(FuncArg sp' name) ty -> FuncArg (sp', ty) name) args argTypes
+        typedArgs = zipWith (\(FuncArg sp' name t) ty -> FuncArg (sp', ty) name t) args argTypes
     let bindings =
             Map.fromList
             [ (name, Forall [] ty)

@@ -5,7 +5,7 @@
 module BackEnd.CPlusPlus where
 
 import           AST.Annotation (Phase (..))
-import           AST.Expr
+import           AST.Syntax     (Expr (..))
 import           AST.Type       (Type (..))
 import           Data.Char      (toLower)
 import           Data.List      (intercalate)

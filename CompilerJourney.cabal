@@ -59,13 +59,15 @@ library
     import:           warnings
 
     -- Modules exported by the library.
-    exposed-modules:  AST.Expr
+    exposed-modules:  AST.Syntax
+                      , AST.Expr
                       , AST.Argument
                       , AST.Type
                       , AST.Annotation
 
                       , Parser.ExprParser
                       , Parser.ArgumentParser
+                      , Parser.TypeParser
                       , Parser.ParserBase
 
                       , SemanticAnalysis.TypeChecker
