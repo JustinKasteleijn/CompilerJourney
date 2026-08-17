@@ -196,7 +196,8 @@ instance Typeable (Expr 'Parsed) where
     let substs = map fst3 results
         types  = map snd3 results
         ast    = map thd3 results
-    pure (mconcat substs, TTuple types, Tuple (sp, TTuple types) ast)
+        s      = mconcat substs
+    pure (s, TTuple types, Tuple (sp, TTuple types) (apply s ast))
   infer (BinaryOperation sp lhs op rhs) = do
     (s1, t1, expr)  <- infer lhs
     (s2, t2, expr') <- local (apply s1) (infer rhs)
