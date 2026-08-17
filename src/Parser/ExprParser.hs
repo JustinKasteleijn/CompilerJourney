@@ -12,10 +12,11 @@ import           Control.Applicative             (Alternative (..), optional)
 import           Control.Applicative.Combinators (between, sepBy)
 import           Control.Monad.Combinators.Expr  (Operator (InfixL, InfixN, InfixR, Prefix),
                                                   makeExprParser)
+import           Data.Char                       (isAlpha)
 import           Generic.Span                    (Span (Span))
 import           Parser.ArgumentParser           (funcArgs)
 import           Text.Megaparsec                 (MonadParsec (label),
-                                                  getSourcePos)
+                                                  getSourcePos, satisfy)
 import qualified Text.Megaparsec.Char.Lexer      as L
 
 operatorTable :: [[Operator Parser (Expr 'Parsed)]]
@@ -85,6 +86,7 @@ application = do
 atom :: Parser (Expr 'Parsed)
 atom = integer
    <|> boolean
+   <|> char
    <|> identifier
    <|> tupleOrExpr
    <|> lambda
@@ -96,6 +98,9 @@ integer = label "integer" $
 boolean :: Parser (Expr 'Parsed)
 boolean = label "boolean" $
   LBool `withSpan` lexeme (True <$ keyword "true" <|> False <$ keyword "false")
+
+char :: Parser (Expr 'Parsed)
+char = LChar `withSpan` between (symbol "'") (symbol "'") (satisfy isAlpha)
 
 identifier :: Parser (Expr 'Parsed)
 identifier = label "identifier"
