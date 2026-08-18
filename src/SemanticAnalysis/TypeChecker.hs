@@ -11,7 +11,8 @@ import           AST.Annotation           (Phase (..))
 import           AST.Argument             (getFunctionArgumentName)
 import           AST.Expr                 (OperatorKind (..), kindOf)
 import           AST.Syntax               (BinaryOperator (..), Expr (..),
-                                           FuncArg (..), UnaryOperator (..))
+                                           FuncArg (..), UnaryOperator (..),
+                                           annotatedTypeToType)
 import           Control.Monad.Except
 import           Control.Monad.RWS.Strict (MonadReader (ask, local), RWS,
                                            runRWS)
@@ -141,6 +142,7 @@ unify (TVar n) t                        = varBind n t
 unify t (TVar n)                        = varBind n t
 unify TInt TInt                         = pure mempty
 unify TBool TBool                       = pure mempty
+unify TChar TChar                       = pure mempty
 unify (TTuple types) (TTuple types')    = unifyMany types types'
 unify (TFun args ret) (TFun args' ret') = do
   s1 <- unifyMany args args'
@@ -163,22 +165,22 @@ varBind u t | t == TVar u          = return mempty
             | u `Set.member` ftv t = throwError "Cannot construct infinite type"
             | otherwise            = return $ Subst $ Map.singleton u t
 
-class Typeable a where
+class Types (f 'Typed) => Typeable f where
   {-# MINIMAL check | infer #-}
 
-  check :: a -> Type -> TI (Subst, Expr 'Typed)
+  check :: f 'Parsed -> Type -> TI (Subst, f 'Typed)
   check x t = do
     (s, t', ast) <- infer x
     s'      <- unify t t'
     pure (s' <> s, ast)
 
-  infer :: a -> TI (Subst, Type, Expr 'Typed)
+  infer :: f 'Parsed -> TI (Subst, Type, f 'Typed)
   infer x = do
     v <- newTypeVar
     (s, ast) <- check x v
     pure (s, apply s v, apply s ast)
 
-instance Typeable (Expr 'Parsed) where
+instance Typeable Expr where
   infer :: Expr 'Parsed -> TI (Subst, Type, Expr 'Typed)
   infer (LInt sp n)                  = pure (mempty, TInt, LInt (sp, TInt) n)
   infer (LBool sp b)                 = pure (mempty, TBool, LBool (sp, TBool) b)
@@ -219,23 +221,27 @@ instance Typeable (Expr 'Parsed) where
     let s           = s2 <> s1
     return (s, t, UnaryOperation (sp, t) op (apply s expr'))
   infer (Lambda sp args body) = do
-    argTypes <- mapM (const newTypeVar) args
-    let typedArgs :: [FuncArg 'Typed]
-        typedArgs = zipWith (\(FuncArg sp' name t) ty -> FuncArg (sp', ty) name t) args argTypes
+    argRes <- mapM infer args
+    let sArgs     = mconcat $ map fst3 argRes
+        argTypes  = map snd3 argRes
+        argAST    = map thd3 argRes
+
     let bindings =
             Map.fromList
-            [ (name, Forall [] ty)
-            | (name, ty) <- zip (map getFunctionArgumentName args) argTypes
+            [ (getFunctionArgumentName arg, Forall [] ty)
+            | (arg, ty) <- zip args (map (apply sArgs) argTypes)
             ]
+
     (s1, bodyType, bodyAst) <- local (Map.union bindings) (infer body)
-    let fullType = TFun (apply s1 argTypes) (apply s1 bodyType)
-    pure (s1, fullType, Lambda (sp, fullType) (apply s1 typedArgs) (apply s1 bodyAst))
+    let s                   = s1 <> sArgs
+    let fullType            = TFun (apply s argTypes) (apply s bodyType)
+    pure (s, fullType, Lambda (sp, fullType) (apply s argAST) (apply s bodyAst))
   infer (Application sp lam exprs) = do
     (sf, tf, ast) <- infer lam
     results       <- mapM infer exprs
     retType       <- newTypeVar
     let sargs     = mconcat (map fst3 results)
-    let expected  = TFun (map snd3 results) retType
+    let expected  = TFun (map (apply sargs . snd3) results) retType
     let argsAst   = map thd3 results
     s3            <- unify (apply sargs tf) expected
     let s         = mconcat [s3, sargs, sf]
@@ -255,3 +261,16 @@ getBinaryType op =
     Equality   -> do
       a <- newTypeVar
       pure $ TFun [a, a] a
+
+instance Typeable FuncArg where
+  infer :: FuncArg 'Parsed -> TI (Subst, Type, FuncArg 'Typed)
+  infer (FuncArg sp name mt) = do
+    tv <- newTypeVar
+    case mt of
+      Just t  -> do
+        let expected = annotatedTypeToType t
+        s            <- unify tv expected
+        let t'       = apply s tv
+        pure (s, t', FuncArg (sp, t') name (Just t))
+      Nothing -> do
+        pure (mempty, tv, FuncArg (sp, tv) name Nothing)

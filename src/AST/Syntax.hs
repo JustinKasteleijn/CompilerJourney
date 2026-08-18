@@ -8,6 +8,7 @@ module AST.Syntax where
 
 import           AST.Annotation      (Ann, Annotated (getAnn, setAnn),
                                       Phase (..), ShowAnn (showAnn))
+import           AST.Type            (Type (TBool, TChar, TFun, TInt, TTuple, TVar))
 import           Data.Proxy          (Proxy (..))
 import           Generic.DebugShow   (DebugShow (debugShow))
 import           Generic.ProgramShow (ProgramShow (programShow), indentS,
@@ -206,6 +207,14 @@ data AnnotatedType
   | ATTVar  Span String
   | ATTuple Span [AnnotatedType]
   | ATFun   Span [AnnotatedType] AnnotatedType
+
+annotatedTypeToType :: AnnotatedType -> Type
+annotatedTypeToType (ATInt _)           = TInt
+annotatedTypeToType (ATBool _)          = TBool
+annotatedTypeToType (ATChar _)          = TChar
+annotatedTypeToType (ATTVar _ v)        = TVar v
+annotatedTypeToType (ATTuple _ ts)      = TTuple (map annotatedTypeToType ts)
+annotatedTypeToType (ATFun _ args body) = TFun (map annotatedTypeToType args) (annotatedTypeToType body)
 
 instance Show AnnotatedType where
   show :: AnnotatedType -> String
