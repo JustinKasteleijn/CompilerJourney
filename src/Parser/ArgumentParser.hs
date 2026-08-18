@@ -11,7 +11,7 @@ import           Parser.TypeParser               (annotatedType)
 import           Text.Megaparsec                 (MonadParsec (label))
 
 funcArg :: Parser (FuncArg 'Parsed)
-funcArg = withSpan FuncArg identifierString <*> optional annotatedType
+funcArg = withSpan FuncArg identifierString <*> optional (symbol ":" *> annotatedType)
 
 funcArgs :: Parser [FuncArg 'Parsed]
 funcArgs = label "function argument" $

@@ -87,10 +87,10 @@ instance Types (Expr 'Typed) where
 instance Types (FuncArg 'Typed) where
   apply :: Subst -> FuncArg 'Typed -> FuncArg 'Typed
   apply s = \case
-    FuncArg (sp, t) v t' -> FuncArg (sp, apply s t) v (apply s t')
+    FuncArg (sp, t) v t' -> FuncArg (sp, apply s t) v t'
 
   ftv :: FuncArg 'Typed -> Set.Set String
-  ftv (FuncArg (_, t) _ t') = ftv t <> ftv t'
+  ftv (FuncArg (_, t) _ _) = ftv t
 
 newtype Subst = Subst { unSubst :: Map.Map String Type }
   deriving (Show)

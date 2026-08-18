@@ -12,6 +12,7 @@ import           Data.Proxy          (Proxy (..))
 import           Generic.DebugShow   (DebugShow (debugShow))
 import           Generic.ProgramShow (ProgramShow (programShow), indentS,
                                       newline)
+import           Generic.Span        (Span)
 import           Generic.StringUtils (joinWithCommaDS, joinWithCommaS)
 
 data Expr (p :: Phase)
@@ -198,16 +199,16 @@ instance ProgramShow (Expr p) where
   programShow n expr
     = indentS n expr
 
-data AnnotatedType (p :: Phase)
-  = ATInt (Ann p)
-  | ATBool (Ann p)
-  | ATChar (Ann p)
-  | ATTVar (Ann p) String
-  | ATTuple (Ann p) [AnnotatedType p]
-  | ATFun (Ann p) [AnnotatedType p] (AnnotatedType p)
+data AnnotatedType
+  = ATInt   Span
+  | ATBool  Span
+  | ATChar  Span
+  | ATTVar  Span String
+  | ATTuple Span [AnnotatedType]
+  | ATFun   Span [AnnotatedType] AnnotatedType
 
-instance Show (AnnotatedType p) where
-  show :: AnnotatedType p -> String
+instance Show AnnotatedType where
+  show :: AnnotatedType -> String
   show (ATInt _)           = "int"
   show (ATBool _)          = "bool"
   show (ATChar _)          = "char"
@@ -215,8 +216,21 @@ instance Show (AnnotatedType p) where
   show (ATTuple _ ts)      = "(" ++ joinWithCommaS ts ++ ")"
   show (ATFun _ args body) = "|" ++ joinWithCommaS args ++ "| ->" ++ show body
 
+instance DebugShow AnnotatedType where
+  debugShow :: AnnotatedType -> String
+  debugShow (ATInt sp)           = "Ann ( " ++ show sp ++ ")" ++ " int"
+  debugShow (ATBool sp)          = "Ann ( " ++ show sp ++ ")" ++ " bool"
+  debugShow (ATChar sp)          = "Ann ( " ++ show sp ++ ")" ++ " char"
+  debugShow (ATTVar sp v)        = "Ann ( " ++ show sp ++ ")" ++ v
+  debugShow (ATTuple sp ts)      = "Ann ( " ++ show sp ++ ")"++ "(" ++ joinWithCommaS ts ++ ")"
+  debugShow (ATFun sp args body) = "Ann ( " ++ show sp ++ ")" ++ "|" ++ joinWithCommaS args ++ "| ->" ++ show body
+
+instance ProgramShow AnnotatedType where
+  programShow :: Int -> AnnotatedType -> String
+  programShow _ t = ": " ++ show t
+
 data FuncArg (p :: Phase)
-  = FuncArg (Ann p) String (Maybe (AnnotatedType p))
+  = FuncArg (Ann p) String (Maybe AnnotatedType)
 
 instance Annotated FuncArg where
   getAnn :: FuncArg p -> Ann p
@@ -227,7 +241,7 @@ instance Annotated FuncArg where
 
 instance Show (FuncArg p) where
   show :: FuncArg p -> String
-  show (FuncArg _ arg t) = maybe arg (\x -> ": " ++ show x) t
+  show (FuncArg _ arg t) = maybe arg (\x -> arg ++ ": " ++ show x) t
 
 instance (ShowAnn p) => DebugShow (FuncArg p) where
   debugShow :: FuncArg p -> String
