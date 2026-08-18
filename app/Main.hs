@@ -10,4 +10,4 @@ import           Parser.ParserBase            (runParser, runParserDebug)
 import           SemanticAnalysis.TypeChecker (evalTI, infer)
 
 main :: IO ()
-main = print $ thd3 $ fromLeft undefined $ evalTI $ infer $ runParser exprParser "|x: int, y: char| { (x, y) } ('c', 5)"
+main = print $ thd3 $ fromRight undefined $ evalTI $ infer $ runParser exprParser "|x: int, y: char| { (x, y) } ('c', 5)"
