@@ -119,6 +119,14 @@ runTI t = runRWS (runExceptT t) mempty 0
 evalTI :: TI a -> Either String a
 evalTI = fst3 . runTI
 
+runTypeChecker :: TI (a, b, c) -> c
+runTypeChecker = thd3 . unwrap . evalTI
+  where
+    unwrap :: Either String a -> a
+    unwrap = \case
+                Left err -> error err
+                Right v  -> v
+
 newTypeVar :: TI Type
 newTypeVar = do
   s <- get

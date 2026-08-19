@@ -3,7 +3,7 @@
 module ASTTest.ExprSpec (spec) where
 
 import           AST.Annotation
-import           AST.Expr
+import           AST.Syntax
 import           Test.Syd
 
 spec :: Spec

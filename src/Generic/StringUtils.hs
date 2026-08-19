@@ -18,3 +18,7 @@ joinWithCommaDS = joinWithComma debugShow
 
 joinwithCommaPS :: ProgramShow a => Int -> [a] -> String
 joinwithCommaPS n = joinWithComma (programShow n)
+
+getBetween :: String -> String
+getBetween =
+  takeWhile (/= ')') . drop 1 . dropWhile (/= '(')

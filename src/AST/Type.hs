@@ -21,10 +21,10 @@ data Scheme = Forall [String] Type
 instance Show Type where
   show :: Type -> String
   show (TVar n)          = n
-  show  TInt             = "Int"
-  show TBool             = "Bool"
-  show TChar             = "Char"
-  show (TTuple types)    = "Tuple (" ++ joinWithCommaS types ++ ")"
+  show  TInt             = "int"
+  show TBool             = "bool"
+  show TChar             = "char"
+  show (TTuple types)    = "tuple (" ++ joinWithCommaS types ++ ")"
   show (TFun params out) = "|" ++ joinWithCommaS params ++ "|" ++ "->" ++ show out
 
 instance DebugShow Type where
