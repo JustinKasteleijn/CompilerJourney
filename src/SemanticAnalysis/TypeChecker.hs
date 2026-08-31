@@ -22,6 +22,7 @@ import           Control.Monad.State
 import           Data.Char                (chr, ord)
 import qualified Data.Map                 as Map
 import qualified Data.Set                 as Set
+import           Debug.Trace              (traceM)
 import           Generic.Triple           (fst3, snd3, thd3)
 
 class Types a where
@@ -284,14 +285,13 @@ getBinaryType op =
 instance Typeable Statement where
   infer :: Statement 'Parsed -> TI (Subst, Type, Statement 'Typed)
   infer = \case
-    Assign sp (Ident spi v) mt e -> case mt of
-                          Just t  -> do
-                            let t'          = annotatedTypeToType t
-                            (s1, te, eAst) <- infer e
-                            s'             <- unify t' te
-                            let s           = s1 <> s'
-                            pure (s, t', Assign (sp, t') (Ident (spi, t') v) mt eAst)
-                          Nothing -> undefined
+    Assign sp (Ident spi v) mt e -> do
+        t'             <- maybe newTypeVar (pure . annotatedTypeToType) mt
+        (s1, te, eAst) <- infer e
+        s'             <- unify t' te
+        let s           = s1 <> s'
+        let t           = apply s t'
+        pure (s, t, Assign (sp, t) (Ident (spi, t) v) mt (apply s eAst))
 
 instance Typeable FuncArg where
   infer :: FuncArg 'Parsed -> TI (Subst, Type, FuncArg 'Typed)

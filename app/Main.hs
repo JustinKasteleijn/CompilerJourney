@@ -11,7 +11,7 @@ import           Parser.StatementParser       (parseStatement)
 import           SemanticAnalysis.TypeChecker (evalTI, infer, runTypeChecker)
 
 main :: IO ()
-main = runProgram "var x: (char, int) = |x, y| { (x, y) } ('c', 5)"
+main = runProgram "var x = |x, y| { (x, y) } ('c', 5)"
 
 runProgram :: String -> IO ()
 runProgram program = do
