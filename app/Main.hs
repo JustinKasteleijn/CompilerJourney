@@ -18,4 +18,3 @@ runProgram program = do
       typed  = runTypeChecker $ infer parsed
   _ <- writeCPlusPlusFile  "/Users/justi/Documents/Projects/CompilerJourney/output/c.cpp" typed
   debugPrint typed
-  pure ()

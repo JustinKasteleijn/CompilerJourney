@@ -16,6 +16,9 @@ import           Generic.ProgramShow (ProgramShow (programShow), indentS,
 import           Generic.Span        (Span)
 import           Generic.StringUtils (joinWithCommaDS, joinWithCommaS)
 
+data Ident (p :: Phase)
+  = Ident (Ann p) String
+
 data Expr (p :: Phase)
   = LInt   (Ann p) Int
   | LChar  (Ann p) Char
@@ -28,6 +31,9 @@ data Expr (p :: Phase)
 
   | Lambda          (Ann p) [FuncArg p] (Expr p)
   | Application     (Ann p) (Expr p) [Expr p]
+
+data Statement (p :: Phase)
+  = Assign (Ann p) (Ident p) (Expr p)
 
 instance Annotated Expr where
   getAnn :: Expr p -> Ann p
@@ -51,6 +57,20 @@ instance Annotated Expr where
   setAnn ann (UnaryOperation _ op expr)     = UnaryOperation ann op expr
   setAnn ann (Lambda _ params body)         = Lambda ann params body
   setAnn ann (Application _ lam args)       = Application ann lam args
+
+instance Annotated Statement where
+  getAnn :: Statement p -> Ann p
+  getAnn (Assign ann _ _) = ann
+
+  setAnn :: Ann p -> Statement p -> Statement p
+  setAnn ann (Assign _ v e) = Assign ann v e
+
+instance Annotated Ident where
+  getAnn :: Ident p -> Ann p
+  getAnn (Ident ann _) = ann
+
+  setAnn :: Ann p -> Ident p -> Ident p
+  setAnn ann (Ident _ v) = Ident ann v
 
 data BinaryOperator
   = Add
@@ -135,10 +155,17 @@ instance Show BinaryOperator where
   show And = "&&"
   show Or  = "||"
 
-
 instance Show UnaryOperator where
   show Neg = "-"
   show Not = "!"
+
+instance Show (Ident p) where
+  show :: Ident p -> String
+  show (Ident _ x) = x
+
+instance Show (Statement p) where
+  show :: Statement p -> String
+  show (Assign _ v e) = show v ++ " = " ++ show e
 
 instance ShowAnn p => DebugShow (Expr p) where
   debugShow :: Expr p -> String
@@ -189,6 +216,24 @@ instance ShowAnn p => DebugShow (Expr p) where
       ++ joinWithCommaDS expr
       ++ ")"
 
+instance ShowAnn p => DebugShow (Statement p) where
+  debugShow :: Statement p -> String
+  debugShow (Assign ann v e) =
+    "Assign "
+    ++ showAnn (Proxy @p) ann
+    ++ " ("
+    ++ debugShow v ++ " = " ++ debugShow e
+    ++ " )"
+
+instance (ShowAnn p) => DebugShow (Ident p) where
+  debugShow :: Ident p -> String
+  debugShow (Ident ann v) =
+    "Ident "
+    ++ showAnn (Proxy @p) ann
+    ++ " ("
+    ++ v
+    ++ " )"
+
 instance ProgramShow (Expr p) where
   programShow :: Int -> Expr p -> String
   programShow n (Lambda _ params body)
@@ -199,6 +244,14 @@ instance ProgramShow (Expr p) where
     = programShow n lam ++ "(" ++  joinWithCommaS expr ++ ")"
   programShow n expr
     = indentS n expr
+
+instance ProgramShow (Statement p) where
+  programShow :: Int -> Statement p -> String
+  programShow = indentS
+
+instance ProgramShow (Ident p) where
+  programShow :: Int -> Ident p -> String
+  programShow = indentS
 
 data AnnotatedType
   = ATInt   Span

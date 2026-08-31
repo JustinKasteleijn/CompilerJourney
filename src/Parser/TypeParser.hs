@@ -33,4 +33,4 @@ annotatedTuple :: Parser AnnotatedType
 annotatedTuple = withSpan ATTuple (between (symbol "(") (symbol ")") (some annotatedType))
 
 annotatedFunc :: Parser AnnotatedType
-annotatedFunc = withSpan ATFun (between (symbol "|") (symbol "|") (sepBy1 annotatedType (symbol " "))) <*> annotatedType
+annotatedFunc = withSpan ATFun (between (symbol "|") (symbol "|") (sepBy1 annotatedType (symbol ", "))) <*> annotatedType
