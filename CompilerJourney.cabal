@@ -66,6 +66,7 @@ library
                       , AST.Annotation
 
                       , Parser.ExprParser
+                      , Parser.StatementParser
                       , Parser.ArgumentParser
                       , Parser.TypeParser
                       , Parser.ParserBase

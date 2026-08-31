@@ -30,7 +30,11 @@ annotatedTVar = withSpan ATTVar typeVar
   where typeVar = some $ satisfy isAlpha
 
 annotatedTuple :: Parser AnnotatedType
-annotatedTuple = withSpan ATTuple (between (symbol "(") (symbol ")") (some annotatedType))
+annotatedTuple = withSpan ATTuple (between (symbol "(") (symbol ")") (sepBy1 annotatedType (symbol ",")))
 
 annotatedFunc :: Parser AnnotatedType
-annotatedFunc = withSpan ATFun (between (symbol "|") (symbol "|") (sepBy1 annotatedType (symbol ", "))) <*> annotatedType
+annotatedFunc = withSpan
+  ATFun
+    (between (symbol "|") (symbol "|") (sepBy1 annotatedType (symbol ", ")))
+    <* symbol "->"
+    <*> annotatedType

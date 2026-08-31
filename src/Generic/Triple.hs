@@ -11,3 +11,6 @@ snd3 (_, y, _) = y
 thd3 :: (a, b, c) -> c
 thd3 (_, _, z) = z
 {-# INLINE thd3 #-}
+
+uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
+uncurry3 f (x,y,z) = f x y z

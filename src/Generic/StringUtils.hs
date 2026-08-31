@@ -4,6 +4,9 @@ import           Data.List           (intercalate)
 import           Generic.DebugShow   (DebugShow (debugShow))
 import           Generic.ProgramShow (ProgramShow (programShow))
 
+showOrEmpty :: (Show a) => Maybe a -> String
+showOrEmpty = maybe "" show
+
 joinWith :: String -> (a -> String) -> [a] -> String
 joinWith sep f = intercalate sep . map f
 

@@ -14,7 +14,8 @@ import           Generic.DebugShow   (DebugShow (debugShow))
 import           Generic.ProgramShow (ProgramShow (programShow), indentS,
                                       newline)
 import           Generic.Span        (Span)
-import           Generic.StringUtils (joinWithCommaDS, joinWithCommaS)
+import           Generic.StringUtils (joinWithCommaDS, joinWithCommaS,
+                                      showOrEmpty)
 
 data Ident (p :: Phase)
   = Ident (Ann p) String
@@ -33,7 +34,7 @@ data Expr (p :: Phase)
   | Application     (Ann p) (Expr p) [Expr p]
 
 data Statement (p :: Phase)
-  = Assign (Ann p) (Ident p) (Expr p)
+  = Assign (Ann p) (Ident p) (Maybe AnnotatedType) (Expr p)
 
 instance Annotated Expr where
   getAnn :: Expr p -> Ann p
@@ -60,10 +61,10 @@ instance Annotated Expr where
 
 instance Annotated Statement where
   getAnn :: Statement p -> Ann p
-  getAnn (Assign ann _ _) = ann
+  getAnn (Assign ann _ _ _) = ann
 
   setAnn :: Ann p -> Statement p -> Statement p
-  setAnn ann (Assign _ v e) = Assign ann v e
+  setAnn ann (Assign _ v mt e) = Assign ann v mt e
 
 instance Annotated Ident where
   getAnn :: Ident p -> Ann p
@@ -165,7 +166,8 @@ instance Show (Ident p) where
 
 instance Show (Statement p) where
   show :: Statement p -> String
-  show (Assign _ v e) = show v ++ " = " ++ show e
+  show (Assign _ v mt e) = show v ++ showOrEmpty mt ++ " = " ++ show e
+
 
 instance ShowAnn p => DebugShow (Expr p) where
   debugShow :: Expr p -> String
@@ -218,11 +220,11 @@ instance ShowAnn p => DebugShow (Expr p) where
 
 instance ShowAnn p => DebugShow (Statement p) where
   debugShow :: Statement p -> String
-  debugShow (Assign ann v e) =
+  debugShow (Assign ann v mt e) =
     "Assign "
     ++ showAnn (Proxy @p) ann
     ++ " ("
-    ++ debugShow v ++ " = " ++ debugShow e
+    ++ debugShow v ++ showOrEmpty mt ++" = " ++ debugShow e
     ++ " )"
 
 instance (ShowAnn p) => DebugShow (Ident p) where

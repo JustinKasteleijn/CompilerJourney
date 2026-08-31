@@ -9,9 +9,12 @@ module Parser.ParserBase
     symbol,
     keyword,
     identifierString,
+    identifier,
     withSpan
   ) where
 
+import           AST.Annotation             (Phase (Parsed))
+import           AST.Syntax                 (Ident (..))
 import           Data.Void                  (Void)
 import           Generic.DebugShow          (DebugShow (debugShow))
 import           Generic.Span               (Span (Span))
@@ -51,11 +54,15 @@ symbol = L.symbol spaceAndComments
 
 keyword :: String -> Parser ()
 keyword w = try
-  $ string w
-    *> notFollowedBy alphaNumChar
+  $ lexeme
+  $ string w *> notFollowedBy alphaNumChar
 
 identifierString :: Parser String
 identifierString = lexeme (some (alphaNumChar <|> char '_'))
+
+identifier :: Parser (Ident 'Parsed)
+identifier = label "identifier"
+  $ Ident `withSpan` identifierString
 
 withSpan :: (Span -> a -> b) -> Parser a -> Parser b
 withSpan constructor p = do

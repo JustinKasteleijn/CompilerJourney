@@ -87,7 +87,7 @@ atom :: Parser (Expr 'Parsed)
 atom = integer
    <|> boolean
    <|> char
-   <|> identifier
+   <|> lidentifier
    <|> tupleOrExpr
    <|> lambda
 
@@ -102,8 +102,8 @@ boolean = label "boolean" $
 char :: Parser (Expr 'Parsed)
 char = LChar `withSpan` between (symbol "'") (symbol "'") (satisfy isAlpha)
 
-identifier :: Parser (Expr 'Parsed)
-identifier = label "identifier"
+lidentifier :: Parser (Expr 'Parsed)
+lidentifier = label "identifier"
   $ LIdent `withSpan` identifierString
 
 tupleOrExpr :: Parser (Expr 'Parsed)
