@@ -11,6 +11,7 @@ data Type
   | TInt
   | TBool
   | TChar
+  | TUnit
 
   | TTuple [Type]
   | TFun [Type] Type
@@ -24,6 +25,7 @@ instance Show Type where
   show  TInt             = "int"
   show TBool             = "bool"
   show TChar             = "char"
+  show TUnit             = "()"
   show (TTuple types)    = "tuple (" ++ joinWithCommaS types ++ ")"
   show (TFun params out) = "|" ++ joinWithCommaS params ++ "|" ++ "->" ++ show out
 

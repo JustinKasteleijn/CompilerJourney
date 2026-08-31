@@ -15,7 +15,8 @@ import           Generic.ProgramShow (ProgramShow (programShow), indentS,
                                       newline)
 import           Generic.Span        (Span)
 import           Generic.StringUtils (joinWithCommaDS, joinWithCommaS,
-                                      showOrEmpty)
+                                      joinWithNewlineDS, joinWithNewlinePS,
+                                      joinWithNewlineS, showOrEmpty)
 
 data Ident (p :: Phase)
   = Ident (Ann p) String
@@ -35,6 +36,7 @@ data Expr (p :: Phase)
 
 data Statement (p :: Phase)
   = Assign (Ann p) (Ident p) (Maybe AnnotatedType) (Expr p)
+  | While  (Ann p) (Expr p)  [Statement p]
 
 instance Annotated Expr where
   getAnn :: Expr p -> Ann p
@@ -62,9 +64,11 @@ instance Annotated Expr where
 instance Annotated Statement where
   getAnn :: Statement p -> Ann p
   getAnn (Assign ann _ _ _) = ann
+  getAnn (While ann _ _)    = ann
 
   setAnn :: Ann p -> Statement p -> Statement p
   setAnn ann (Assign _ v mt e) = Assign ann v mt e
+  setAnn ann (While _ c b)     = While ann c b
 
 instance Annotated Ident where
   getAnn :: Ident p -> Ann p
@@ -167,7 +171,10 @@ instance Show (Ident p) where
 instance Show (Statement p) where
   show :: Statement p -> String
   show (Assign _ v mt e) = show v ++ showOrEmpty mt ++ " = " ++ show e
-
+  show (While _ c b)     = "while ("
+     ++ show c
+     ++ ")"
+     ++ joinWithNewlineS b
 
 instance ShowAnn p => DebugShow (Expr p) where
   debugShow :: Expr p -> String
@@ -226,6 +233,12 @@ instance ShowAnn p => DebugShow (Statement p) where
     ++ " ("
     ++ debugShow v ++ showOrEmpty mt ++" = " ++ debugShow e
     ++ " )"
+  debugShow (While ann c b)     =
+    "While "
+    ++ showAnn (Proxy @p) ann
+    ++ " ("
+    ++ debugShow c ++ "{ " ++ joinWithNewlineDS b ++ "}"
+    ++ " )"
 
 instance (ShowAnn p) => DebugShow (Ident p) where
   debugShow :: Ident p -> String
@@ -249,7 +262,10 @@ instance ProgramShow (Expr p) where
 
 instance ProgramShow (Statement p) where
   programShow :: Int -> Statement p -> String
-  programShow = indentS
+  programShow n (While _ c b) =
+    "while (" ++ programShow 0 c ++ ")" ++ " {"
+      ++ joinWithNewlinePS n b ++ "\n}"
+  programShow n st            = indentS n st
 
 instance ProgramShow (Ident p) where
   programShow :: Int -> Ident p -> String

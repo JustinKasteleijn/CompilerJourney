@@ -12,7 +12,7 @@ import           AST.Argument             (getFunctionArgumentName)
 import           AST.Expr                 (OperatorKind (..), kindOf)
 import           AST.Syntax               (BinaryOperator (..), Expr (..),
                                            FuncArg (..), Ident (Ident),
-                                           Statement (Assign),
+                                           Statement (Assign, While),
                                            UnaryOperator (..),
                                            annotatedTypeToType)
 import           Control.Monad.Except
@@ -22,7 +22,6 @@ import           Control.Monad.State
 import           Data.Char                (chr, ord)
 import qualified Data.Map                 as Map
 import qualified Data.Set                 as Set
-import           Debug.Trace              (traceM)
 import           Generic.Triple           (fst3, snd3, thd3)
 
 class Types a where
@@ -35,6 +34,7 @@ instance Types Type where
   ftv TInt           = mempty
   ftv TBool          = mempty
   ftv TChar          = mempty
+  ftv TUnit          = mempty
   ftv (TTuple ts)    = foldMap ftv ts
   ftv (TFun ins out) = foldMap ftv ins <> ftv out
 
@@ -91,11 +91,13 @@ instance Types (Expr 'Typed) where
 instance Types (Statement 'Typed) where
   apply :: Subst -> Statement 'Typed -> Statement 'Typed
   apply s = \case
-    Assign (sp, t) v mt e -> Assign (sp, apply s t) v mt e
+    Assign (sp, t) v mt e -> Assign (sp, apply s t) v mt (apply s e)
+    While (sp, t) c b     -> While (sp, apply s t) (apply s c) (apply s b)
 
   ftv :: Statement 'Typed -> Set.Set String
   ftv = \case
     Assign (_, t) _ _ e -> ftv t <> ftv e
+    While  (_, t) c b   -> ftv t <> ftv c <> ftv b
 
 instance Types (FuncArg 'Typed) where
   apply :: Subst -> FuncArg 'Typed -> FuncArg 'Typed
@@ -286,12 +288,19 @@ instance Typeable Statement where
   infer :: Statement 'Parsed -> TI (Subst, Type, Statement 'Typed)
   infer = \case
     Assign sp (Ident spi v) mt e -> do
-        t'             <- maybe newTypeVar (pure . annotatedTypeToType) mt
-        (s1, te, eAst) <- infer e
-        s'             <- unify t' te
-        let s           = s1 <> s'
-        let t           = apply s t'
-        pure (s, t, Assign (sp, t) (Ident (spi, t) v) mt (apply s eAst))
+      t'             <- maybe newTypeVar (pure . annotatedTypeToType) mt
+      (s1, te, eAst) <- infer e
+      s'             <- unify t' te
+      let s           = s1 <> s'
+      let t           = apply s t'
+      pure (s, t, Assign (sp, t) (Ident (spi, t) v) mt (apply s eAst))
+    While sp c b                 -> do
+      (s1, tc, cAst) <- infer c
+      s2             <- unify tc TBool
+      sx             <- local (apply s2) (mapM infer b)
+      let s           = s1 <> s2 <> foldMap fst3 sx
+          b'          = map thd3 sx
+      pure (s, TUnit, While (sp, TUnit) (apply s cAst) (apply s b'))
 
 instance Typeable FuncArg where
   infer :: FuncArg 'Parsed -> TI (Subst, Type, FuncArg 'Typed)
