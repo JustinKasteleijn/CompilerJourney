@@ -27,7 +27,7 @@ instance CPlusPlus (Expr Typed) where
   genCPlusPlus (Tuple (_, t) xs)               = "std::tuple<" ++ getBetween (show t) ++ ">{" ++ intercalate ", " (map genCPlusPlus xs) ++ "}"
   genCPlusPlus (BinaryOperation  _ lhs op rhs) = show lhs ++ " " ++ show op ++ " " ++ show rhs
   genCPlusPlus (UnaryOperation _ op expr)      = show op ++ show expr
-  genCPlusPlus (Lambda _ args body)            = "auto lam = [] (" ++ intercalate ", " (map genCPlusPlus args) ++ ") { return " ++ genCPlusPlus body ++ ";}"
+  genCPlusPlus (Lambda _ args body)            = "[] (" ++ intercalate ", " (map genCPlusPlus args) ++ ") { return " ++ genCPlusPlus body ++ ";}"
   genCPlusPlus (Application _ lam args)        = genCPlusPlus lam ++ "(" ++ intercalate ", " (map genCPlusPlus args) ++ ");"
 
 instance CPlusPlus AnnotatedType where
@@ -45,7 +45,7 @@ instance CPlusPlus Type where
   genCPlusPlus TChar          = "char"
   genCPlusPlus TUnit          = ""
   genCPlusPlus (TVar n)       = n
-  genCPlusPlus (TTuple types) = "(" ++ intercalate ", " (map show types) ++ ")"
+  genCPlusPlus (TTuple types) = "std::tuple<" ++ intercalate ", " (map show types) ++ ">"
   genCPlusPlus (TFun i o)     = "std::function<" ++ genCPlusPlus o ++ "(" ++ intercalate ", " (map genCPlusPlus i) ++ ")>"
 
 instance CPlusPlus (Statement 'Typed) where
