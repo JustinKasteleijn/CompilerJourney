@@ -33,7 +33,7 @@ instance CPlusPlus AnnotatedType where
   genCPlusPlus (ATChar _)        = "char"
   genCPlusPlus (ATTVar _ n)      = n
   genCPlusPlus (ATTuple _ types) = "(" ++ intercalate ", " (map show types) ++ ")"
-  genCPlusPlus (ATFun {})        = undefined
+  genCPlusPlus (ATFun _ i o)     = "std::function<" ++ genCPlusPlus o ++ "(" ++ intercalate ", " (map genCPlusPlus i) ++ ")>"
 
 instance CPlusPlus (FuncArg 'Typed) where
   genCPlusPlus :: FuncArg 'Typed -> String
