@@ -14,11 +14,11 @@ main :: IO ()
 main =
   let lam   = "var x = |x, y| { (x, y) } ('c', 5)"
       while = "while (false) {var v = 5;};"
-   in runProgram while
+   in runProgram lam
 
 runProgram :: String -> IO ()
 runProgram program = do
   let parsed = runParser parseStatement program
       typed  = runTypeChecker $ infer parsed
-  --_ <- writeCPlusPlusFile  "/Users/justi/Documents/Projects/CompilerJourney/output/c.cpp" typed
+  _ <- writeCPlusPlusFile  "/Users/justi/Documents/Projects/CompilerJourney/output/c.cpp" typed
   debugPrint typed

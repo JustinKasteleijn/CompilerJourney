@@ -1,12 +1,16 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE InstanceSigs      #-}
+{-# LANGUAGE LambdaCase        #-}
 
 module BackEnd.CPlusPlus where
 
 import           AST.Annotation      (Phase (..))
 import           AST.Syntax          (AnnotatedType (..), Expr (..),
-                                      FuncArg (FuncArg), annotatedTypeToType)
+                                      FuncArg (FuncArg), Ident (..),
+                                      Statement (Assign, While),
+                                      annotatedTypeToType)
+import           AST.Type            (Type (TBool, TChar, TFun, TInt, TTuple, TUnit, TVar))
 import           Data.Char           (toLower)
 import           Data.List           (intercalate)
 import           Generic.StringUtils (getBetween)
@@ -28,12 +32,32 @@ instance CPlusPlus (Expr Typed) where
 
 instance CPlusPlus AnnotatedType where
   genCPlusPlus :: AnnotatedType -> String
-  genCPlusPlus (ATInt _)         = "int"
-  genCPlusPlus (ATBool _)        = "bool"
-  genCPlusPlus (ATChar _)        = "char"
-  genCPlusPlus (ATTVar _ n)      = n
-  genCPlusPlus (ATTuple _ types) = "(" ++ intercalate ", " (map show types) ++ ")"
-  genCPlusPlus (ATFun _ i o)     = "std::function<" ++ genCPlusPlus o ++ "(" ++ intercalate ", " (map genCPlusPlus i) ++ ")>"
+  genCPlusPlus = genCPlusPlus . annotatedTypeToType
+
+instance CPlusPlus (Ident 'Typed) where
+   genCPlusPlus :: Ident 'Typed -> String
+   genCPlusPlus (Ident _ v) = v
+
+instance CPlusPlus Type where
+  genCPlusPlus :: Type -> String
+  genCPlusPlus TInt           = "int"
+  genCPlusPlus TBool          = "bool"
+  genCPlusPlus TChar          = "char"
+  genCPlusPlus TUnit          = ""
+  genCPlusPlus (TVar n)       = n
+  genCPlusPlus (TTuple types) = "(" ++ intercalate ", " (map show types) ++ ")"
+  genCPlusPlus (TFun i o)     = "std::function<" ++ genCPlusPlus o ++ "(" ++ intercalate ", " (map genCPlusPlus i) ++ ")>"
+
+instance CPlusPlus (Statement 'Typed) where
+  genCPlusPlus :: Statement 'Typed -> String
+  genCPlusPlus = \case
+    While _ c b         -> "while ("
+      ++ genCPlusPlus c
+      ++ ") {\n"
+      ++ intercalate ";\n" (map genCPlusPlus b)
+      ++ "}\n"
+    Assign (_, t) v _ e -> genCPlusPlus t ++ " " ++ genCPlusPlus v ++ " = " ++ genCPlusPlus e
+
 
 instance CPlusPlus (FuncArg 'Typed) where
   genCPlusPlus :: FuncArg 'Typed -> String
