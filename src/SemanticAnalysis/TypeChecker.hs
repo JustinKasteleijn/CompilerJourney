@@ -11,7 +11,9 @@ import           AST.Annotation           (Phase (..))
 import           AST.Argument             (getFunctionArgumentName)
 import           AST.Expr                 (OperatorKind (..), kindOf)
 import           AST.Syntax               (BinaryOperator (..), Expr (..),
-                                           FuncArg (..), UnaryOperator (..),
+                                           FuncArg (..), Ident (Ident),
+                                           Statement (Assign),
+                                           UnaryOperator (..),
                                            annotatedTypeToType)
 import           Control.Monad.Except
 import           Control.Monad.RWS.Strict (MonadReader (ask, local), RWS,
@@ -84,6 +86,15 @@ instance Types (Expr 'Typed) where
     BinaryOperation (_, t)       l _ r    -> ftv t <> ftv l <> ftv r
     Lambda          (_, t)       _ body   -> ftv t <> ftv body
     Application     (_, t)       f args   -> ftv t <> ftv f <> ftv args
+
+instance Types (Statement 'Typed) where
+  apply :: Subst -> Statement 'Typed -> Statement 'Typed
+  apply s = \case
+    Assign (sp, t) v mt e -> Assign (sp, apply s t) v mt e
+
+  ftv :: Statement 'Typed -> Set.Set String
+  ftv = \case
+    Assign (_, t) _ _ e -> ftv t <> ftv e
 
 instance Types (FuncArg 'Typed) where
   apply :: Subst -> FuncArg 'Typed -> FuncArg 'Typed
@@ -269,6 +280,18 @@ getBinaryType op =
     Equality   -> do
       a <- newTypeVar
       pure $ TFun [a, a] a
+
+instance Typeable Statement where
+  infer :: Statement 'Parsed -> TI (Subst, Type, Statement 'Typed)
+  infer = \case
+    Assign sp (Ident spi v) mt e -> case mt of
+                          Just t  -> do
+                            let t'          = annotatedTypeToType t
+                            (s1, te, eAst) <- infer e
+                            s'             <- unify t' te
+                            let s           = s1 <> s'
+                            pure (s, t', Assign (sp, t') (Ident (spi, t') v) mt eAst)
+                          Nothing -> undefined
 
 instance Typeable FuncArg where
   infer :: FuncArg 'Parsed -> TI (Subst, Type, FuncArg 'Typed)
