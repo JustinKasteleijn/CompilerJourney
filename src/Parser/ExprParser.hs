@@ -18,10 +18,10 @@ import           Control.Monad.Combinators.Expr  (Operator (InfixL, InfixN, Infi
 import           Data.Char                       (isAlpha)
 import           Generic.Span                    (Span (Span))
 import           Generic.Triple                  (uncurry3)
-import           Parser.ArgumentParser           (funcArgs)
+import           Parser.ArgumentParser           (funcArg, funcArgs)
 import           Parser.TypeParser               (annotatedType)
 import           Text.Megaparsec                 (MonadParsec (label),
-                                                  getSourcePos, satisfy,
+                                                  getSourcePos, satisfy, sepBy1,
                                                   sepEndBy)
 import qualified Text.Megaparsec.Char.Lexer      as L
 
@@ -165,3 +165,15 @@ parseWhile = (uncurry . While) `withSpan`
 
 parseReturn :: Parser (Statement 'Parsed)
 parseReturn = Return `withSpan` (keyword "return" *> exprParser)
+
+parseFunction :: Parser (Statement 'Parsed)
+parseFunction = do
+    st   <- getSourcePos
+    _    <- symbol "fn"
+    id'  <- identifier
+    args <- between (symbol "(") (symbol ")") funcArgs
+    retT <- optional $ symbol "->" *> annotatedType
+    body <- between (symbol "{") (symbol "}") parseStatements
+    end  <- getSourcePos
+    let sp = Span st end
+    return $ Assign sp id' retT (Lambda sp args body)

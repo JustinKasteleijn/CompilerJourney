@@ -13,7 +13,6 @@ import           AST.Syntax          (AnnotatedType (..), Expr (..),
 import           AST.Type            (Type (TBool, TChar, TFun, TInt, TTuple, TUnit, TVar))
 import           Data.Char           (toLower)
 import           Data.List           (intercalate)
-import           Generic.ProgramShow (indent)
 import           Generic.StringUtils (getBetween)
 
 class CPlusPlus a where
@@ -26,8 +25,8 @@ instance CPlusPlus (Expr Typed) where
   genCPlusPlus (LChar _ c)                     = show c
   genCPlusPlus (LIdent _ n)                    = n
   genCPlusPlus (Tuple (_, t) xs)               = "std::tuple<" ++ getBetween (show t) ++ ">{" ++ intercalate ", " (map genCPlusPlus xs) ++ "}"
-  genCPlusPlus (BinaryOperation  _ lhs op rhs) = show lhs ++ " " ++ show op ++ " " ++ show rhs
-  genCPlusPlus (UnaryOperation _ op expr)      = show op ++ show expr
+  genCPlusPlus (BinaryOperation  _ lhs op rhs) = genCPlusPlus lhs ++ " " ++ show op ++ " " ++ genCPlusPlus rhs
+  genCPlusPlus (UnaryOperation _ op expr)      = show op ++ genCPlusPlus expr
   genCPlusPlus (Lambda _ args body)            = "[] (" ++ intercalate ", " (map genCPlusPlus args) ++ ") {\n " ++ intercalate ";\n" (map genCPlusPlus body) ++ "\n};"
   genCPlusPlus (Application _ lam args)        = init (genCPlusPlus lam) ++ "(" ++ intercalate ", " (map genCPlusPlus args) ++ ");"
 
@@ -46,8 +45,8 @@ instance CPlusPlus Type where
   genCPlusPlus TChar          = "char"
   genCPlusPlus TUnit          = ""
   genCPlusPlus (TVar n)       = n
-  genCPlusPlus (TTuple types) = "std::tuple<" ++ intercalate ", " (map show types) ++ ">"
-  genCPlusPlus (TFun i o)     = "std::function<" ++ genCPlusPlus o ++ "(" ++ intercalate ", " (map genCPlusPlus i) ++ ")>"
+  genCPlusPlus (TTuple types) = "std::tuple<" ++ intercalate ", " (map genCPlusPlus types) ++ ">"
+  genCPlusPlus (TFun _ o)     = genCPlusPlus o
 
 instance CPlusPlus (Statement 'Typed) where
   genCPlusPlus :: Statement 'Typed -> String
@@ -71,15 +70,14 @@ instance CPlusPlus (Statement 'Typed) where
 
 instance CPlusPlus (FuncArg 'Typed) where
   genCPlusPlus :: FuncArg 'Typed -> String
-  genCPlusPlus (FuncArg (_, t) v mt) = show (maybe t annotatedTypeToType mt) ++ " " ++ v
+  genCPlusPlus (FuncArg (_, t) v mt) = genCPlusPlus (maybe t annotatedTypeToType mt) ++ " " ++ v
 
 buildCPlusPlusFile :: (CPlusPlus p) => p -> String
 buildCPlusPlusFile linez = unlines $  [
     "#include <iostream>",
     "#include <tuple>",
-    "",
-    "int main() {"
-  ] ++ genCPlusPlus linez : ["}"]
+    ""
+  ] ++ [genCPlusPlus linez]
 
 writeCPlusPlusFile :: (CPlusPlus p) => String -> p -> IO String
 writeCPlusPlusFile path linez = do
