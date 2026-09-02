@@ -12,7 +12,7 @@ import           AST.Argument             (getFunctionArgumentName)
 import           AST.Expr                 (OperatorKind (..), kindOf)
 import           AST.Syntax               (BinaryOperator (..), Expr (..),
                                            FuncArg (..), Ident (Ident),
-                                           Statement (Assign, While),
+                                           Statement (Assign, Return, While),
                                            UnaryOperator (..),
                                            annotatedTypeToType)
 import           Control.Monad.Except
@@ -93,11 +93,13 @@ instance Types (Statement 'Typed) where
   apply s = \case
     Assign (sp, t) v mt e -> Assign (sp, apply s t) v mt (apply s e)
     While (sp, t) c b     -> While (sp, apply s t) (apply s c) (apply s b)
+    Return (sp, t) e      -> Return (sp, apply s t) (apply s e)
 
   ftv :: Statement 'Typed -> Set.Set String
   ftv = \case
     Assign (_, t) _ _ e -> ftv t <> ftv e
     While  (_, t) c b   -> ftv t <> ftv c <> ftv b
+    Return (_, t) e     -> ftv t <> ftv e
 
 instance Types (FuncArg 'Typed) where
   apply :: Subst -> FuncArg 'Typed -> FuncArg 'Typed
@@ -254,9 +256,11 @@ instance Typeable Expr where
             | (arg, ty) <- zip args (map (apply sArgs) argTypes)
             ]
 
-    (s1, bodyType, bodyAst) <- local (Map.union bindings) (infer body)
-    let s                   = s1 <> sArgs
+    xs                      <-local (Map.union bindings) (mapM infer body)
+    let s                   = foldMap fst3 xs <> sArgs
+    let bodyType            = last $ map snd3 xs
     let fullType            = TFun (apply s argTypes) (apply s bodyType)
+    let bodyAst             = map thd3 xs
     pure (s, fullType, Lambda (sp, fullType) (apply s argAST) (apply s bodyAst))
   infer (Application sp lam exprs) = do
     (sf, tf, ast) <- infer lam
@@ -301,6 +305,9 @@ instance Typeable Statement where
       let s           = s1 <> s2 <> foldMap fst3 sx
           b'          = map thd3 sx
       pure (s, TUnit, While (sp, TUnit) (apply s cAst) (apply s b'))
+    Return sp e                  -> do
+      (s1, t, eAst) <- infer e
+      pure (s1, t, Return (sp, t) eAst)
 
 instance Typeable FuncArg where
   infer :: FuncArg 'Parsed -> TI (Subst, Type, FuncArg 'Typed)

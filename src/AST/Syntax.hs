@@ -1,7 +1,6 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE InstanceSigs        #-}
 {-# LANGUAGE KindSignatures      #-}
-{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 
@@ -10,6 +9,7 @@ module AST.Syntax where
 import           AST.Annotation      (Ann, Annotated (getAnn, setAnn),
                                       Phase (..), ShowAnn (showAnn))
 import           AST.Type            (Type (TBool, TChar, TFun, TInt, TTuple, TVar))
+import           Data.List           (intercalate)
 import           Data.Proxy          (Proxy (..))
 import           Generic.DebugShow   (DebugShow (debugShow))
 import           Generic.ProgramShow (ProgramShow (programShow), indentS,
@@ -32,12 +32,13 @@ data Expr (p :: Phase)
   | BinaryOperation (Ann p) (Expr p) BinaryOperator (Expr p)
   | UnaryOperation  (Ann p) UnaryOperator (Expr p)
 
-  | Lambda          (Ann p) [FuncArg p] (Expr p)
+  | Lambda          (Ann p) [FuncArg p] [Statement p]
   | Application     (Ann p) (Expr p) [Expr p]
 
 data Statement (p :: Phase)
   = Assign (Ann p) (Ident p) (Maybe AnnotatedType) (Expr p)
   | While  (Ann p) (Expr p)  [Statement p]
+  | Return (Ann p) (Expr p)
 
 instance Annotated Expr where
   getAnn :: Expr p -> Ann p
@@ -66,10 +67,12 @@ instance Annotated Statement where
   getAnn :: Statement p -> Ann p
   getAnn (Assign ann _ _ _) = ann
   getAnn (While ann _ _)    = ann
+  getAnn (Return ann _)     = ann
 
   setAnn :: Ann p -> Statement p -> Statement p
   setAnn ann (Assign _ v mt e) = Assign ann v mt e
   setAnn ann (While _ c b)     = While ann c b
+  setAnn ann (Return _ e)      = Return ann e
 
 instance Annotated Ident where
   getAnn :: Ident p -> Ann p
@@ -176,6 +179,8 @@ instance Show (Statement p) where
      ++ show c
      ++ ")"
      ++ joinWithNewlineS b
+  show (Return _ e)      =
+    "return " ++ show e ++ ";"
 
 instance ShowAnn p => DebugShow (Expr p) where
   debugShow :: Expr p -> String
@@ -215,7 +220,7 @@ instance ShowAnn p => DebugShow (Expr p) where
       ++ " (|"
       ++ joinWithCommaDS params
       ++ " |\n {"
-      ++ debugShow body
+      ++ intercalate ";\n" (map debugShow body)
       ++ "\n }"
   debugShow (Application ann lam expr) =
     "Application "
@@ -240,6 +245,12 @@ instance ShowAnn p => DebugShow (Statement p) where
     ++ " ("
     ++ debugShow c ++ "{ " ++ joinWithNewlineDS b ++ "}"
     ++ " )"
+  debugShow (Return ann e)      =
+    "Return "
+      ++ showAnn (Proxy @p) ann
+      ++ " ("
+      ++ debugShow e
+      ++ " )"
 
 instance (ShowAnn p) => DebugShow (Ident p) where
   debugShow :: Ident p -> String
@@ -327,8 +338,3 @@ instance Show (FuncArg p) where
 instance (ShowAnn p) => DebugShow (FuncArg p) where
   debugShow :: FuncArg p -> String
   debugShow (FuncArg ann arg t) = "FuncArg(" ++ showAnn (Proxy @p) ann ++ " " ++ arg ++ ": " ++ show t ++")"
-
--- data Statement (p :: Phase)
---   = If     (Expr p) [Statement p] [Statement p]
---   | While  (Expr p) [Statement p]
---   | Assign ()

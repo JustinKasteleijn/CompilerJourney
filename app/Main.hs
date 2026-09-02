@@ -5,14 +5,13 @@ import           Data.Either                  (fromLeft, fromRight)
 import           Generic.DebugShow
 import           Generic.ProgramShow          (prettyPrint)
 import           Generic.Triple               (thd3)
-import           Parser.ExprParser            (exprParser)
+import           Parser.ExprParser            (exprParser, parseStatement)
 import           Parser.ParserBase            (runParser, runParserDebug)
-import           Parser.StatementParser       (parseStatement)
 import           SemanticAnalysis.TypeChecker (evalTI, infer, runTypeChecker)
 
 main :: IO ()
 main =
-  let lam   = "var x = |x, y| { (x, y) } ('c', 5)"
+  let lam   = "var x = |x, y| { return (x, y) } ('c', 5)"
       while = "while (false) {var v = 5;};"
    in runProgram lam
 

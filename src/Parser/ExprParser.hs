@@ -3,8 +3,11 @@
 module Parser.ExprParser where
 
 import           AST.Annotation                  (Phase (Parsed))
-import           AST.Syntax                      (BinaryOperator (..),
-                                                  Expr (..), UnaryOperator (..))
+import           AST.Syntax                      (AnnotatedType (..),
+                                                  BinaryOperator (..),
+                                                  Expr (..), Ident,
+                                                  Statement (Assign, Return, While),
+                                                  UnaryOperator (..))
 import           Parser.ParserBase
 
 import           Control.Applicative             (Alternative (..), optional)
@@ -14,9 +17,12 @@ import           Control.Monad.Combinators.Expr  (Operator (InfixL, InfixN, Infi
                                                   makeExprParser)
 import           Data.Char                       (isAlpha)
 import           Generic.Span                    (Span (Span))
+import           Generic.Triple                  (uncurry3)
 import           Parser.ArgumentParser           (funcArgs)
+import           Parser.TypeParser               (annotatedType)
 import           Text.Megaparsec                 (MonadParsec (label),
-                                                  getSourcePos, satisfy)
+                                                  getSourcePos, satisfy,
+                                                  sepEndBy)
 import qualified Text.Megaparsec.Char.Lexer      as L
 
 operatorTable :: [[Operator Parser (Expr 'Parsed)]]
@@ -121,7 +127,41 @@ tupleOrExpr = label "parenthesized expression" $ do
 lambda :: Parser (Expr 'Parsed)
 lambda = label "lambda expression" $ do
   start <- getSourcePos
-  args  <- between (symbol "|") (symbol "|") funcArgs
-  expr  <- between (symbol "{") (symbol "}") (label "function argument" exprParser)
+  args  <- between (symbol "|") (symbol "|") (label "function arguemnts" funcArgs)
+  expr  <- between (symbol "{") (symbol "}") (label "function body" parseStatements)
   end   <- getSourcePos
   return $ Lambda (Span start end) args expr
+
+------------------------------------------------------
+-- Statements
+------------------------------------------------------
+
+parseStatements :: Parser [Statement 'Parsed]
+parseStatements = sepEndBy parseStatement (symbol ";")
+
+parseStatement :: Parser (Statement 'Parsed)
+parseStatement = parseAssign
+  <|> parseWhile
+  <|> parseReturn
+
+parseAssign :: Parser (Statement 'Parsed)
+parseAssign =
+  (uncurry3 . Assign) `withSpan` assign
+ where
+   assign :: Parser (Ident 'Parsed, Maybe AnnotatedType, Expr 'Parsed)
+   assign = (,,)
+     <$  keyword "var"
+     <*> identifier
+     <*> optional (symbol ":" *> annotatedType)
+     <*  symbol "="
+     <*> exprParser
+
+parseWhile :: Parser (Statement 'Parsed)
+parseWhile = (uncurry . While) `withSpan`
+  (do _ <- keyword "while"
+      c <- between (symbol "(") (symbol ")") exprParser
+      b <- between (symbol "{") (symbol "}") parseStatements
+      pure (c, b))
+
+parseReturn :: Parser (Statement 'Parsed)
+parseReturn = Return `withSpan` (keyword "return" *> exprParser)
