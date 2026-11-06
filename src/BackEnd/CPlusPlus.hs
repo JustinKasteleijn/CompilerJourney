@@ -8,7 +8,7 @@ module BackEnd.CPlusPlus where
 import           AST.Annotation      (Phase (..))
 import           AST.Syntax          (AnnotatedType (..), Expr (..),
                                       FuncArg (FuncArg), Ident (..),
-                                      Statement (Assign, Return, While),
+                                      Statement (Assign, Return, VarDecl, While),
                                       annotatedTypeToType)
 import           AST.Type            (Type (TBool, TChar, TFun, TInt, TTuple, TUnit, TVar))
 import           Data.Char           (toLower)
@@ -57,16 +57,17 @@ instance CPlusPlus (Statement 'Typed) where
         ++ ") {\n"
         ++ intercalate ";\n" (map genCPlusPlus b)
         ++ "}\n"
-    Assign (_, t) v _ (Lambda _ args body) ->
+    VarDecl (_, t) v _ (Lambda _ args body) ->
       genCPlusPlus t ++ " "
       ++ genCPlusPlus v
       ++ "(" ++ intercalate ", " (map genCPlusPlus args) ++ ") {\n"
       ++ intercalate ";\n" (map genCPlusPlus body) ++ "\n};"
-    Assign (_, t) v _ e ->
+    Assign _ v _ e ->
+      genCPlusPlus v ++ " = " ++ genCPlusPlus e
+    VarDecl (_, t) v _ e ->
       genCPlusPlus t ++ " " ++ genCPlusPlus v ++ " = " ++ genCPlusPlus e
     Return (_, _) e ->
       "return " ++ genCPlusPlus e ++ ";"
-
 
 instance CPlusPlus (FuncArg 'Typed) where
   genCPlusPlus :: FuncArg 'Typed -> String

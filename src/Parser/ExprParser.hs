@@ -6,7 +6,7 @@ import           AST.Annotation                  (Phase (Parsed))
 import           AST.Syntax                      (AnnotatedType (..),
                                                   BinaryOperator (..),
                                                   Expr (..), Ident,
-                                                  Statement (Assign, Return, While),
+                                                  Statement (Assign, Return, VarDecl, While),
                                                   UnaryOperator (..))
 import           Parser.ParserBase
 
@@ -18,10 +18,10 @@ import           Control.Monad.Combinators.Expr  (Operator (InfixL, InfixN, Infi
 import           Data.Char                       (isAlpha)
 import           Generic.Span                    (Span (Span))
 import           Generic.Triple                  (uncurry3)
-import           Parser.ArgumentParser           (funcArg, funcArgs)
+import           Parser.ArgumentParser           (funcArgs)
 import           Parser.TypeParser               (annotatedType)
 import           Text.Megaparsec                 (MonadParsec (label),
-                                                  getSourcePos, satisfy, sepBy1,
+                                                  getSourcePos, satisfy,
                                                   sepEndBy)
 import qualified Text.Megaparsec.Char.Lexer      as L
 
@@ -140,21 +140,25 @@ parseStatements :: Parser [Statement 'Parsed]
 parseStatements = sepEndBy parseStatement (symbol ";")
 
 parseStatement :: Parser (Statement 'Parsed)
-parseStatement = parseAssign
+parseStatement = parseVarDecl
   <|> parseWhile
   <|> parseReturn
+  <|> parseAssign
+
+parseVarDecl :: Parser (Statement 'Parsed)
+parseVarDecl =
+ (uncurry3 . VarDecl) `withSpan` (symbol "var" *> declaration)
 
 parseAssign :: Parser (Statement 'Parsed)
 parseAssign =
-  (uncurry3 . Assign) `withSpan` assign
- where
-   assign :: Parser (Ident 'Parsed, Maybe AnnotatedType, Expr 'Parsed)
-   assign = (,,)
-     <$  keyword "var"
-     <*> identifier
-     <*> optional (symbol ":" *> annotatedType)
-     <*  symbol "="
-     <*> exprParser
+  (uncurry3 . Assign) `withSpan` declaration
+
+declaration :: Parser (Ident 'Parsed, Maybe AnnotatedType, Expr 'Parsed)
+declaration = (,,)
+    <$> identifier
+    <*> optional (symbol ":" *> annotatedType)
+    <*  symbol "="
+    <*> exprParser
 
 parseWhile :: Parser (Statement 'Parsed)
 parseWhile = (uncurry . While) `withSpan`
@@ -176,4 +180,4 @@ parseFunction = do
     body <- between (symbol "{") (symbol "}") parseStatements
     end  <- getSourcePos
     let sp = Span st end
-    return $ Assign sp id' retT (Lambda sp args body)
+    return $ VarDecl sp id' retT (Lambda sp args body)

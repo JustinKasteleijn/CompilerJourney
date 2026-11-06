@@ -12,7 +12,7 @@ import           AST.Argument             (getFunctionArgumentName)
 import           AST.Expr                 (OperatorKind (..), kindOf)
 import           AST.Syntax               (BinaryOperator (..), Expr (..),
                                            FuncArg (..), Ident (Ident),
-                                           Statement (Assign, Return, While),
+                                           Statement (Assign, Return, VarDecl, While),
                                            UnaryOperator (..),
                                            annotatedTypeToType)
 import           Control.Monad.Except
@@ -92,15 +92,17 @@ instance Types (Expr 'Typed) where
 instance Types (Statement 'Typed) where
   apply :: Subst -> Statement 'Typed -> Statement 'Typed
   apply s = \case
-    Assign (sp, t) v mt e -> Assign (sp, apply s t) v mt (apply s e)
-    While (sp, t) c b     -> While (sp, apply s t) (apply s c) (apply s b)
-    Return (sp, t) e      -> Return (sp, apply s t) (apply s e)
+    Assign (sp, t) v mt e  -> Assign (sp, apply s t) v mt (apply s e)
+    VarDecl (sp, t) v mt e -> VarDecl (sp, apply s t) v mt (apply s e)
+    While (sp, t) c b      -> While (sp, apply s t) (apply s c) (apply s b)
+    Return (sp, t) e       -> Return (sp, apply s t) (apply s e)
 
   ftv :: Statement 'Typed -> Set.Set String
   ftv = \case
-    Assign (_, t) _ _ e -> ftv t <> ftv e
-    While  (_, t) c b   -> ftv t <> ftv c <> ftv b
-    Return (_, t) e     -> ftv t <> ftv e
+    Assign (_, t) _ _ e  -> ftv t <> ftv e
+    VarDecl (_, t) _ _ e -> ftv t <> ftv e
+    While  (_, t) c b    -> ftv t <> ftv c <> ftv b
+    Return (_, t) e      -> ftv t <> ftv e
 
 instance Types (FuncArg 'Typed) where
   apply :: Subst -> FuncArg 'Typed -> FuncArg 'Typed
@@ -260,6 +262,7 @@ instance Typeable Expr where
     xs                      <- local (Map.union bindings) (mapM infer body)
     let s                   = foldMap fst3 xs <> sArgs
     let bodyType            = last $ map snd3 xs
+    _ <- traceM $ show $ map snd3 xs
     let fullType            = TFun (apply s argTypes) (apply s bodyType)
     let bodyAst             = map thd3 xs
     pure (s, fullType, Lambda (sp, fullType) (apply s argAST) (apply s bodyAst))
@@ -292,13 +295,24 @@ getBinaryType op =
 instance Typeable Statement where
   infer :: Statement 'Parsed -> TI (Subst, Type, Statement 'Typed)
   infer = \case
-    Assign sp (Ident spi v) mt e -> do
+    VarDecl sp (Ident spi v) mt e -> do
       t'             <- maybe newTypeVar (pure . annotatedTypeToType) mt
       (s1, te, eAst) <- infer e
       s'             <- unify t' te
       let s           = s1 <> s'
       let t           = apply s t'
-      pure (s, t, Assign (sp, t) (Ident (spi, t) v) mt (apply s eAst))
+      pure (s, t, VarDecl (sp, t) (Ident (spi, t) v) mt (apply s eAst))
+    Assign sp (Ident spi v) mt e -> do
+      env <- ask
+      case Map.lookup v env of
+        Nothing     -> throwError $ "Unbound variable: " ++ v
+        Just scheme -> do
+          t              <- instantiate scheme
+          (s1, te, eAst) <- infer e
+          s2             <- unify (apply s1 t) te
+          let s          = s2 <> s1
+              t'         = apply s t
+          return (s, t', Assign (sp, t') (Ident (spi, t') v) mt (apply s eAst))
     While sp c b                 -> do
       (s1, tc, cAst) <- infer c
       s2             <- unify tc TBool

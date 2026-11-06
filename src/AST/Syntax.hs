@@ -36,9 +36,10 @@ data Expr (p :: Phase)
   | Application     (Ann p) (Expr p) [Expr p]
 
 data Statement (p :: Phase)
-  = Assign (Ann p) (Ident p) (Maybe AnnotatedType) (Expr p)
-  | While  (Ann p) (Expr p)  [Statement p]
-  | Return (Ann p) (Expr p)
+  = Assign  (Ann p) (Ident p) (Maybe AnnotatedType) (Expr p)
+  | While   (Ann p) (Expr p)  [Statement p]
+  | Return  (Ann p) (Expr p)
+  | VarDecl (Ann p) (Ident p) (Maybe AnnotatedType) (Expr p)
 
 instance Annotated Expr where
   getAnn :: Expr p -> Ann p
@@ -65,14 +66,16 @@ instance Annotated Expr where
 
 instance Annotated Statement where
   getAnn :: Statement p -> Ann p
-  getAnn (Assign ann _ _ _) = ann
-  getAnn (While ann _ _)    = ann
-  getAnn (Return ann _)     = ann
+  getAnn (Assign ann _ _ _)  = ann
+  getAnn (While ann _ _)     = ann
+  getAnn (Return ann _)      = ann
+  getAnn (VarDecl ann _ _ _) = ann
 
   setAnn :: Ann p -> Statement p -> Statement p
-  setAnn ann (Assign _ v mt e) = Assign ann v mt e
-  setAnn ann (While _ c b)     = While ann c b
-  setAnn ann (Return _ e)      = Return ann e
+  setAnn ann (Assign _ v mt e)  = Assign ann v mt e
+  setAnn ann (While _ c b)      = While ann c b
+  setAnn ann (Return _ e)       = Return ann e
+  setAnn ann (VarDecl _ v mt e) = VarDecl ann v mt e
 
 instance Annotated Ident where
   getAnn :: Ident p -> Ann p
@@ -174,13 +177,14 @@ instance Show (Ident p) where
 
 instance Show (Statement p) where
   show :: Statement p -> String
-  show (Assign _ v mt e) = show v ++ showOrEmpty mt ++ " = " ++ show e
-  show (While _ c b)     = "while ("
+  show (Assign _ v mt e)  = show v ++ showOrEmpty mt ++ " = " ++ show e
+  show (While _ c b)      = "while ("
      ++ show c
      ++ ")"
      ++ joinWithNewlineS b
-  show (Return _ e)      =
+  show (Return _ e)       =
     "return " ++ show e ++ ";"
+  show (VarDecl _ v mt e) = "var " ++ show v ++ showOrEmpty mt ++ show e
 
 instance ShowAnn p => DebugShow (Expr p) where
   debugShow :: Expr p -> String
@@ -235,21 +239,27 @@ instance ShowAnn p => DebugShow (Statement p) where
   debugShow :: Statement p -> String
   debugShow (Assign ann v mt e) =
     "Assign "
-    ++ showAnn (Proxy @p) ann
-    ++ " ("
-    ++ debugShow v ++ showOrEmpty mt ++" = " ++ debugShow e
-    ++ " )"
+      ++ showAnn (Proxy @p) ann
+      ++ " ("
+      ++ debugShow v ++ showOrEmpty mt ++" = " ++ debugShow e
+      ++ " )"
   debugShow (While ann c b)     =
     "While "
-    ++ showAnn (Proxy @p) ann
-    ++ " ("
-    ++ debugShow c ++ "{ " ++ joinWithNewlineDS b ++ "}"
-    ++ " )"
+      ++ showAnn (Proxy @p) ann
+      ++ " ("
+      ++ debugShow c ++ "{ " ++ joinWithNewlineDS b ++ "}"
+      ++ " )"
   debugShow (Return ann e)      =
     "Return "
       ++ showAnn (Proxy @p) ann
       ++ " ("
       ++ debugShow e
+      ++ " )"
+  debugShow (VarDecl ann v mt e) =
+    "VarDecl "
+      ++ showAnn (Proxy @p) ann
+      ++ " ("
+      ++ debugShow v ++ showOrEmpty mt ++" = " ++ debugShow e
       ++ " )"
 
 instance (ShowAnn p) => DebugShow (Ident p) where
