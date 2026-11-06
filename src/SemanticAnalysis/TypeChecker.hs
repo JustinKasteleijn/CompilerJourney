@@ -22,6 +22,7 @@ import           Control.Monad.State
 import           Data.Char                (chr, ord)
 import qualified Data.Map                 as Map
 import qualified Data.Set                 as Set
+import           Debug.Trace              (traceM)
 import           Generic.Triple           (fst3, snd3, thd3)
 
 class Types a where
@@ -256,7 +257,7 @@ instance Typeable Expr where
             | (arg, ty) <- zip args (map (apply sArgs) argTypes)
             ]
 
-    xs                      <-local (Map.union bindings) (mapM infer body)
+    xs                      <- local (Map.union bindings) (mapM infer body)
     let s                   = foldMap fst3 xs <> sArgs
     let bodyType            = last $ map snd3 xs
     let fullType            = TFun (apply s argTypes) (apply s bodyType)
@@ -283,7 +284,7 @@ getBinaryType op =
   case kindOf op of
     Arithmetic -> pure $ TFun [TInt, TInt] TInt
     Logical    -> pure $ TFun [TBool, TBool] TBool
-    Comparison -> pure $ TFun [TInt, TInt] TInt -- Has to be refactored later when implementing type classes
+    Comparison -> pure $ TFun [TInt, TInt] TBool -- Has to be refactored later when implementing type classes
     Equality   -> do
       a <- newTypeVar
       pure $ TFun [a, a] a

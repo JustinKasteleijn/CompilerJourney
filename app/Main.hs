@@ -14,8 +14,8 @@ main :: IO ()
 main =
   let lam   = "var make_tuple = |x, y| { return (x + 5, y - 2) }"
       fn    = unlines ["fn add(x, y) {", "  return x + y", "}"]
-      while = "while (false) {var v = 5;};"
-   in runProgram fn
+      while = unlines ["fn repeat(n: Int) {", "var res = 0;", "while (n > 0) {", "var res = res + n;", "var n = n - 1;", "  };", "};"]
+   in runProgram while
 
 runProgram :: String -> IO ()
 runProgram program = do
