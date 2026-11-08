@@ -1,3 +1,4 @@
+
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE InstanceSigs      #-}
@@ -13,75 +14,87 @@ import           AST.Syntax          (AnnotatedType (..), Expr (..),
 import           AST.Type            (Type (TBool, TChar, TFun, TInt, TTuple, TUnit, TVar))
 import           Data.Char           (toLower)
 import           Data.List           (intercalate)
-import           Generic.StringUtils (getBetween)
+import           Generic.StringUtils (getBetween, indent, indented)
 
 class CPlusPlus a where
-  genCPlusPlus :: a -> String
+  genCPlusPlus :: Int -> a -> String
 
 instance CPlusPlus (Expr Typed) where
-  genCPlusPlus :: Expr Typed -> String
-  genCPlusPlus (LInt _ n)                      = show n
-  genCPlusPlus (LBool _ b)                     = map toLower (show b)
-  genCPlusPlus (LChar _ c)                     = show c
-  genCPlusPlus (LIdent _ n)                    = n
-  genCPlusPlus (Tuple (_, t) xs)               = "std::tuple<" ++ getBetween (show t) ++ ">{" ++ intercalate ", " (map genCPlusPlus xs) ++ "}"
-  genCPlusPlus (BinaryOperation  _ lhs op rhs) = genCPlusPlus lhs ++ " " ++ show op ++ " " ++ genCPlusPlus rhs
-  genCPlusPlus (UnaryOperation _ op expr)      = show op ++ genCPlusPlus expr
-  genCPlusPlus (Lambda _ args body)            = "[] (" ++ intercalate ", " (map genCPlusPlus args) ++ ") {\n " ++ intercalate ";\n" (map genCPlusPlus body) ++ "\n};"
-  genCPlusPlus (Application _ lam args)        = init (genCPlusPlus lam) ++ "(" ++ intercalate ", " (map genCPlusPlus args) ++ ");"
+  genCPlusPlus :: Int -> Expr Typed -> String
+  genCPlusPlus _ (LInt _ n)                      = show n
+  genCPlusPlus _ (LBool _ b)                     = map toLower (show b)
+  genCPlusPlus _ (LChar _ c)                     = show c
+  genCPlusPlus _ (LIdent _ n)                    = n
+  genCPlusPlus n (Tuple (_, t) xs)               = "std::tuple<" ++ getBetween (show t) ++ ">{" ++ intercalate ", " (map (genCPlusPlus n) xs) ++ "}"
+  genCPlusPlus n (BinaryOperation _ lhs op rhs)  = genCPlusPlus n lhs ++ " " ++ show op ++ " " ++ genCPlusPlus n rhs
+  genCPlusPlus n (UnaryOperation _ op expr)      = show op ++ genCPlusPlus n expr
+  genCPlusPlus n (Lambda _ args body)             =
+    "[] (" ++ intercalate ", " (map (genCPlusPlus n) args) ++ ") {\n"
+      ++ intercalate "\n" (map (genCPlusPlus (n + 1)) body)
+      ++ "\n" ++ indent n ++ "}"
+  genCPlusPlus n (Application _ lam args)         =
+    genCPlusPlus n lam ++ "(" ++ intercalate ", " (map (genCPlusPlus n) args) ++ ")"
 
 instance CPlusPlus AnnotatedType where
-  genCPlusPlus :: AnnotatedType -> String
-  genCPlusPlus = genCPlusPlus . annotatedTypeToType
+  genCPlusPlus :: Int -> AnnotatedType -> String
+  genCPlusPlus n = genCPlusPlus n . annotatedTypeToType
 
 instance CPlusPlus (Ident 'Typed) where
-   genCPlusPlus :: Ident 'Typed -> String
-   genCPlusPlus (Ident _ v) = v
+  genCPlusPlus :: Int -> Ident 'Typed -> String
+  genCPlusPlus _ (Ident _ v) = v
 
 instance CPlusPlus Type where
-  genCPlusPlus :: Type -> String
-  genCPlusPlus TInt           = "int"
-  genCPlusPlus TBool          = "bool"
-  genCPlusPlus TChar          = "char"
-  genCPlusPlus TUnit          = ""
-  genCPlusPlus (TVar n)       = n
-  genCPlusPlus (TTuple types) = "std::tuple<" ++ intercalate ", " (map genCPlusPlus types) ++ ">"
-  genCPlusPlus (TFun _ o)     = genCPlusPlus o
+  genCPlusPlus :: Int -> Type -> String
+  genCPlusPlus _ TInt           = "int"
+  genCPlusPlus _ TBool          = "bool"
+  genCPlusPlus _ TChar          = "char"
+  genCPlusPlus _ TUnit          = "void"
+  genCPlusPlus _ (TVar n)       = n
+  genCPlusPlus n (TTuple types) = "std::tuple<" ++ intercalate ", " (map (genCPlusPlus n) types) ++ ">"
+  genCPlusPlus n (TFun _ o)     = genCPlusPlus n o
 
 instance CPlusPlus (Statement 'Typed) where
-  genCPlusPlus :: Statement 'Typed -> String
-  genCPlusPlus = \case
-    While _ c b         ->
-      "while ("
-        ++ genCPlusPlus c
-        ++ ") {\n"
-        ++ intercalate ";\n" (map genCPlusPlus b)
-        ++ "}\n"
+  genCPlusPlus :: Int -> Statement 'Typed -> String
+  genCPlusPlus n = \case
+    While _ c b ->
+      indented n $
+        "while (" ++ genCPlusPlus n c ++ ") {\n"
+          ++ intercalate "\n" (map (genCPlusPlus (n + 1)) b)
+          ++ "\n" ++ indent n ++ "}"
+
     VarDecl (_, t) v _ (Lambda _ args body) ->
-      genCPlusPlus t ++ " "
-      ++ genCPlusPlus v
-      ++ "(" ++ intercalate ", " (map genCPlusPlus args) ++ ") {\n"
-      ++ intercalate ";\n" (map genCPlusPlus body) ++ "\n};"
+      indented n $
+        genCPlusPlus n t ++ " "
+          ++ genCPlusPlus n v
+          ++ "(" ++ intercalate ", " (map (genCPlusPlus n) args) ++ ") {\n"
+          ++ intercalate "\n" (map (genCPlusPlus (n + 1)) body)
+          ++ "\n" ++ indent n ++ "}"
+
     Assign _ v _ e ->
-      genCPlusPlus v ++ " = " ++ genCPlusPlus e
+      indented n $ genCPlusPlus n v ++ " = " ++ genCPlusPlus n e ++ ";"
+
     VarDecl (_, t) v _ e ->
-      genCPlusPlus t ++ " " ++ genCPlusPlus v ++ " = " ++ genCPlusPlus e
+      indented n $
+        genCPlusPlus n t ++ " " ++ genCPlusPlus n v
+          ++ " = " ++ genCPlusPlus n e ++ ";"
+
     Return (_, _) e ->
-      "return " ++ genCPlusPlus e ++ ";"
+      indented n $ "return " ++ genCPlusPlus n e ++ ";"
 
 instance CPlusPlus (FuncArg 'Typed) where
-  genCPlusPlus :: FuncArg 'Typed -> String
-  genCPlusPlus (FuncArg (_, t) v mt) = genCPlusPlus (maybe t annotatedTypeToType mt) ++ " " ++ v
+  genCPlusPlus :: Int -> FuncArg 'Typed -> String
+  genCPlusPlus n (FuncArg (_, t) v mt)
+    = genCPlusPlus n (maybe t annotatedTypeToType mt) ++ " " ++ v
 
 buildCPlusPlusFile :: (CPlusPlus p) => p -> String
-buildCPlusPlusFile linez = unlines $  [
-    "#include <iostream>",
-    "#include <tuple>",
-    ""
-  ] ++ [genCPlusPlus linez]
+buildCPlusPlusFile linez = unlines $
+  [ "#include <iostream>"
+  , "#include <tuple>"
+  , ""
+  ] ++ [genCPlusPlus 0 linez]
 
 writeCPlusPlusFile :: (CPlusPlus p) => String -> p -> IO String
 writeCPlusPlusFile path linez = do
   let cpp = buildCPlusPlusFile linez
-  writeFile path (buildCPlusPlusFile linez)
+  writeFile path cpp
   pure cpp

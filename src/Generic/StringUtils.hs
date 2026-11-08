@@ -37,3 +37,9 @@ joinwithCommaPS n = joinWithComma (programShow n)
 getBetween :: String -> String
 getBetween =
   takeWhile (/= ')') . drop 1 . dropWhile (/= '(')
+
+indent :: Int -> String
+indent n = replicate (n * 2) ' '
+
+indented :: Int -> String -> String
+indented n s = indent n ++ s
