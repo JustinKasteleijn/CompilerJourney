@@ -6,92 +6,168 @@
 
 module BackEnd.CPlusPlus where
 
-import           AST.Annotation      (Phase (..))
-import           AST.Syntax          (AnnotatedType (..), Expr (..),
-                                      FuncArg (FuncArg), Ident (..),
-                                      Statement (Assign, Return, VarDecl, While),
-                                      annotatedTypeToType)
-import           AST.Type            (Type (TBool, TChar, TFun, TInt, TTuple, TUnit, TVar))
-import           Data.Char           (toLower)
-import           Data.List           (intercalate)
-import           Generic.StringUtils (getBetween, indent, indented)
+import           AST.Annotation              (Phase (..))
+import           AST.Syntax                  (AnnotatedType (..), Expr (..),
+                                              FuncArg (FuncArg), Ident (..),
+                                              Statement (Assign, Return, VarDecl, While),
+                                              annotatedTypeToType)
+import           AST.Type                    (Type (TBool, TChar, TFun, TInt, TTuple, TUnit, TVar))
+import           Control.Monad.State.Strict  (MonadState (get), StateT,
+                                              evalStateT, modify)
+import           Control.Monad.Writer.Strict (MonadWriter (tell), Writer,
+                                              execWriter)
+import           Data.Char                   (toLower)
+import           Data.List                   (intercalate, intersperse)
+import           Generic.StringUtils         (getBetween, indent, indented)
+
+type Cpp = StateT Int (Writer String)
+type CppGen = Cpp ()
+
+render :: CppGen -> String
+render = execWriter . (`evalStateT` 0)
+
+emit :: String -> CppGen
+emit = tell
+
+line :: CppGen -> CppGen
+line action = do
+  n <- get
+  emit (indent n)
+  action
+  emit "\n"
+
+statement :: CppGen -> CppGen
+statement action =
+  line $ action >> emit ";"
+
+withIndent :: CppGen -> CppGen
+withIndent action = do
+  modify (+1)
+  action
+  modify (subtract 1)
+
+block :: CppGen -> CppGen -> CppGen
+block header body = do
+  line (header >> emit "{")
+  withIndent body
+  line (emit "}")
+
+commaSep :: [CppGen] -> CppGen
+commaSep = sequence_ . intersperse (emit ", ")
+
+inBetween :: String -> String -> CppGen -> CppGen
+inBetween s e action = do
+  emit s
+  action
+  emit e
+
+parens :: CppGen -> CppGen
+parens = inBetween "(" ")"
 
 class CPlusPlus a where
-  genCPlusPlus :: Int -> a -> String
+  genCPlusPlus :: a -> CppGen
 
 instance CPlusPlus (Expr Typed) where
-  genCPlusPlus :: Int -> Expr Typed -> String
-  genCPlusPlus _ (LInt _ n)                      = show n
-  genCPlusPlus _ (LBool _ b)                     = map toLower (show b)
-  genCPlusPlus _ (LChar _ c)                     = show c
-  genCPlusPlus _ (LIdent _ n)                    = n
-  genCPlusPlus n (Tuple (_, t) xs)               = "std::tuple<" ++ getBetween (show t) ++ ">{" ++ intercalate ", " (map (genCPlusPlus n) xs) ++ "}"
-  genCPlusPlus n (BinaryOperation _ lhs op rhs)  = genCPlusPlus n lhs ++ " " ++ show op ++ " " ++ genCPlusPlus n rhs
-  genCPlusPlus n (UnaryOperation _ op expr)      = show op ++ genCPlusPlus n expr
-  genCPlusPlus n (Lambda _ args body)             =
-    "[] (" ++ intercalate ", " (map (genCPlusPlus n) args) ++ ") {\n"
-      ++ intercalate "\n" (map (genCPlusPlus (n + 1)) body)
-      ++ "\n" ++ indent n ++ "}"
-  genCPlusPlus n (Application _ lam args)         =
-    genCPlusPlus n lam ++ "(" ++ intercalate ", " (map (genCPlusPlus n) args) ++ ")"
+  genCPlusPlus :: Expr Typed -> CppGen
+  genCPlusPlus (LInt _ n)                      = emit (show n)
+  genCPlusPlus (LBool _ b)                     = emit (map toLower (show b))
+  genCPlusPlus (LChar _ c)                     = emit (show c)
+  genCPlusPlus (LIdent _ n)                    = emit n
+  genCPlusPlus (Tuple (_, t) xs)               = do
+    emit "std::tuple<"
+    emit (getBetween (show t))
+    emit ">{"
+    commaSep (map genCPlusPlus xs)
+    emit "}"
+  genCPlusPlus (BinaryOperation _ lhs op rhs)  = do
+    genCPlusPlus lhs
+    emit (" " ++ show op ++ " ")
+    genCPlusPlus rhs
+  genCPlusPlus (UnaryOperation _ op expr)       = do
+    emit (show op)
+    genCPlusPlus expr
+  genCPlusPlus (Lambda _ args body)             = do
+    emit "[] ("
+    commaSep (map genCPlusPlus args)
+    line (emit ") {")
+    withIndent $
+      sequence_ (intersperse (emit "\n") (map genCPlusPlus body))
+    line (emit "}")
+  genCPlusPlus (Application _ lam args)         = do
+    genCPlusPlus lam
+    parens $
+      commaSep (map genCPlusPlus args)
 
 instance CPlusPlus AnnotatedType where
-  genCPlusPlus :: Int -> AnnotatedType -> String
-  genCPlusPlus n = genCPlusPlus n . annotatedTypeToType
+  genCPlusPlus :: AnnotatedType -> CppGen
+  genCPlusPlus = genCPlusPlus . annotatedTypeToType
 
 instance CPlusPlus (Ident 'Typed) where
-  genCPlusPlus :: Int -> Ident 'Typed -> String
-  genCPlusPlus _ (Ident _ v) = v
+  genCPlusPlus :: Ident 'Typed -> CppGen
+  genCPlusPlus (Ident _ v) = emit v
 
 instance CPlusPlus Type where
-  genCPlusPlus :: Int -> Type -> String
-  genCPlusPlus _ TInt           = "int"
-  genCPlusPlus _ TBool          = "bool"
-  genCPlusPlus _ TChar          = "char"
-  genCPlusPlus _ TUnit          = "void"
-  genCPlusPlus _ (TVar n)       = n
-  genCPlusPlus n (TTuple types) = "std::tuple<" ++ intercalate ", " (map (genCPlusPlus n) types) ++ ">"
-  genCPlusPlus n (TFun _ o)     = genCPlusPlus n o
+  genCPlusPlus :: Type -> CppGen
+  genCPlusPlus TInt           = emit "int"
+  genCPlusPlus TBool          = emit "bool"
+  genCPlusPlus TChar          = emit "char"
+  genCPlusPlus TUnit          = emit "void"
+  genCPlusPlus (TVar n)       = emit n
+  genCPlusPlus (TTuple types) = do
+    emit "std::tuple<"
+    commaSep
+     $ map genCPlusPlus types
+    emit ">"
+  genCPlusPlus (TFun _ o)     = genCPlusPlus o
 
 instance CPlusPlus (Statement 'Typed) where
-  genCPlusPlus :: Int -> Statement 'Typed -> String
-  genCPlusPlus n = \case
+  genCPlusPlus :: Statement 'Typed -> CppGen
+  genCPlusPlus = \case
     While _ c b ->
-      indented n $
-        "while (" ++ genCPlusPlus n c ++ ") {\n"
-          ++ intercalate "\n" (map (genCPlusPlus (n + 1)) b)
-          ++ "\n" ++ indent n ++ "}"
-
+      block
+        (do
+            emit "while("
+            genCPlusPlus c
+            emit ")")
+        (mapM_ genCPlusPlus b)
     VarDecl (_, t) v _ (Lambda _ args body) ->
-      indented n $
-        genCPlusPlus n t ++ " "
-          ++ genCPlusPlus n v
-          ++ "(" ++ intercalate ", " (map (genCPlusPlus n) args) ++ ") {\n"
-          ++ intercalate "\n" (map (genCPlusPlus (n + 1)) body)
-          ++ "\n" ++ indent n ++ "}"
-
+      block
+        (do
+          genCPlusPlus t
+          emit " "
+          genCPlusPlus v
+          parens $
+            commaSep (map genCPlusPlus args))
+        (mapM_ genCPlusPlus body)
     Assign _ v _ e ->
-      indented n $ genCPlusPlus n v ++ " = " ++ genCPlusPlus n e ++ ";"
-
-    VarDecl (_, t) v _ e ->
-      indented n $
-        genCPlusPlus n t ++ " " ++ genCPlusPlus n v
-          ++ " = " ++ genCPlusPlus n e ++ ";"
-
+      statement $ do
+        genCPlusPlus v
+        emit " = "
+        genCPlusPlus e
+    VarDecl (_, t) v mt e ->
+      statement $ do
+        genCPlusPlus $ maybe t annotatedTypeToType mt
+        emit " "
+        genCPlusPlus v
+        emit " = "
+        genCPlusPlus e
     Return (_, _) e ->
-      indented n $ "return " ++ genCPlusPlus n e ++ ";"
+      statement $ do
+        emit "return "
+        genCPlusPlus e
 
 instance CPlusPlus (FuncArg 'Typed) where
-  genCPlusPlus :: Int -> FuncArg 'Typed -> String
-  genCPlusPlus n (FuncArg (_, t) v mt)
-    = genCPlusPlus n (maybe t annotatedTypeToType mt) ++ " " ++ v
+  genCPlusPlus :: FuncArg 'Typed -> CppGen
+  genCPlusPlus (FuncArg (_, t) v mt) = do
+    genCPlusPlus (maybe t annotatedTypeToType mt)
+    emit $ " " ++ v
 
 buildCPlusPlusFile :: (CPlusPlus p) => p -> String
-buildCPlusPlusFile linez = unlines $
+buildCPlusPlusFile linez = unlines
   [ "#include <iostream>"
   , "#include <tuple>"
   , ""
-  ] ++ [genCPlusPlus 0 linez]
+  ] ++ render (genCPlusPlus linez)
 
 writeCPlusPlusFile :: (CPlusPlus p) => String -> p -> IO String
 writeCPlusPlusFile path linez = do
