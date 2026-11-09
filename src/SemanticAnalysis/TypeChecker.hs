@@ -15,7 +15,6 @@ import           AST.Syntax               (BinaryOperator (..), Expr (..),
                                            Statement (Assign, Return, VarDecl, While),
                                            UnaryOperator (..),
                                            annotatedTypeToType)
-import           Control.Applicative      (Alternative ((<|>)))
 import           Control.Monad.Except
 import           Control.Monad.RWS.Strict (MonadReader (ask, local), RWS,
                                            runRWS)
@@ -24,7 +23,6 @@ import           Data.Char                (chr, ord)
 import qualified Data.Map                 as Map
 import           Data.Maybe               (fromMaybe)
 import qualified Data.Set                 as Set
-import           Debug.Trace              (traceM)
 import           Generic.SafeAlternatives (safeLast)
 import           Generic.Triple           (fst3, snd3, thd3)
 
@@ -212,11 +210,8 @@ class Types (f 'Typed) => Typeable f where
 
 inferProgram :: [Statement 'Parsed] -> TI (Subst, Type, [Statement 'Typed])
 inferProgram statements = do
-  res <- mapM infer statements
-  let subst = mconcat (map fst3 res)
-      ty    = TUnit
-      typed = map thd3 res
-  pure (subst, ty, typed)
+  (body, _, asts) <- inferStatements statements
+  pure (body, TUnit, asts)
 
 instance Typeable Expr where
   infer :: Expr 'Parsed -> TI (Subst, Type, Expr 'Typed)
@@ -259,24 +254,22 @@ instance Typeable Expr where
     let s           = s2 <> s1
     return (s, t, UnaryOperation (sp, t) op (apply s expr'))
   infer (Lambda sp args body) = do
-    argRes <- mapM infer args
+    argRes        <- mapM infer args
     let sArgs     = mconcat $ map fst3 argRes
         argTypes  = map snd3 argRes
         argAST    = map thd3 argRes
 
-    let bindings =
+    let bindings  =
             Map.fromList
             [ (getFunctionArgumentName arg, Forall [] ty)
             | (arg, ty) <- zip args (map (apply sArgs) argTypes)
             ]
 
-    xs                      <- local (Map.union bindings) (mapM infer body)
-    let s                   = foldMap fst3 xs <> sArgs
-    let bodyType            = fromMaybe TUnit (safeLast (map snd3 xs))
-    _ <- traceM $ show $ map snd3 xs
-    let fullType            = TFun (apply s argTypes) (apply s bodyType)
-    let bodyAst             = map thd3 xs
-    pure (s, fullType, Lambda (sp, fullType) (apply s argAST) (apply s bodyAst))
+    (sBody, types, asts) <- local (Map.union bindings) (inferStatements body)
+    let s                = sBody <> sArgs
+    let bodyType         = fromMaybe TUnit (safeLast types)
+    let fullType         = TFun (apply s argTypes) (apply s bodyType)
+    pure (s, fullType, Lambda (sp, fullType) (apply s argAST) (apply s asts))
   infer (Application sp lam exprs) = do
     (sf, tf, ast) <- infer lam
     results       <- mapM infer exprs
@@ -326,14 +319,28 @@ instance Typeable Statement where
           return (s, t', Assign (sp, t') (Ident (spi, t') v) mt (apply s eAst))
     While sp c b                 -> do
       (s1, tc, cAst) <- infer c
-      s2             <- unify tc TBool
-      sx             <- local (apply s2) (mapM infer b)
-      let s           = s1 <> s2 <> foldMap fst3 sx
-          b'          = map thd3 sx
-      pure (s, TUnit, While (sp, TUnit) (apply s cAst) (apply s b'))
+      s2             <- unify (apply s1 tc) TBool
+      let s3         = s2 <> s1
+      (sx, _, ast)   <- local (apply s3) (inferStatements b)
+      let s           = sx <> s3
+      pure (s, TUnit, While (sp, TUnit) (apply s cAst) (apply s ast))
     Return sp e                  -> do
       (s1, t, eAst) <- infer e
       pure (s1, t, Return (sp, t) eAst)
+
+inferStatements :: [Statement 'Parsed] -> TI (Subst, [Type], [Statement 'Typed])
+inferStatements []           = pure (mempty, [], [])
+inferStatements (stmt:stmts) = do
+  env             <- ask
+  (s, t, ast)     <- infer stmt
+  let env'        = apply s env
+      env''       = case stmt of
+                      VarDecl _ (Ident _ name) _ _ ->
+                        Map.insert name (Forall [] (apply s t)) env'
+                      _ -> env'
+  (s', ts, tstmt) <- local (const env'') (inferStatements stmts)
+  let s''         = s' <> s
+  pure (s'', apply s'' t : ts, apply s'' ast : tstmt)
 
 instance Typeable FuncArg where
   infer :: FuncArg 'Parsed -> TI (Subst, Type, FuncArg 'Typed)

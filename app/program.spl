@@ -1,8 +1,9 @@
-fn repeat(n: int) {
-  var b: bool = true;
+fn repeat(n) {
+  var b = true;
   var res = 0;
   while (n > 0) {
     n = n - 1;
+    res = 5
   };
   return n;
 }
