@@ -17,8 +17,8 @@ import           Control.Monad.State.Strict  (MonadState (get), StateT,
 import           Control.Monad.Writer.Strict (MonadWriter (tell), Writer,
                                               execWriter)
 import           Data.Char                   (toLower)
-import           Data.List                   (intercalate, intersperse)
-import           Generic.StringUtils         (getBetween, indent, indented)
+import           Data.List                   (intersperse)
+import           Generic.StringUtils         (getBetween, indent)
 
 type Cpp = StateT Int (Writer String)
 type CppGen = Cpp ()
