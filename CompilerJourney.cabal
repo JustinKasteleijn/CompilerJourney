@@ -79,6 +79,7 @@ library
                       , Generic.ProgramShow
                       , Generic.StringUtils
                       , Generic.Triple
+                      , Generic.SafeAlternatives
 
     -- Modules included in this library but not exported.
     -- other-modules:

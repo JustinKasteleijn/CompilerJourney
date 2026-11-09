@@ -15,14 +15,17 @@ import           AST.Syntax               (BinaryOperator (..), Expr (..),
                                            Statement (Assign, Return, VarDecl, While),
                                            UnaryOperator (..),
                                            annotatedTypeToType)
+import           Control.Applicative      (Alternative ((<|>)))
 import           Control.Monad.Except
 import           Control.Monad.RWS.Strict (MonadReader (ask, local), RWS,
                                            runRWS)
 import           Control.Monad.State
 import           Data.Char                (chr, ord)
 import qualified Data.Map                 as Map
+import           Data.Maybe               (fromMaybe)
 import qualified Data.Set                 as Set
 import           Debug.Trace              (traceM)
+import           Generic.SafeAlternatives (safeLast)
 import           Generic.Triple           (fst3, snd3, thd3)
 
 class Types a where
@@ -207,6 +210,14 @@ class Types (f 'Typed) => Typeable f where
     (s, ast) <- check x v
     pure (s, apply s v, apply s ast)
 
+inferProgram :: [Statement 'Parsed] -> TI (Subst, Type, [Statement 'Typed])
+inferProgram statements = do
+  res <- mapM infer statements
+  let subst = mconcat (map fst3 res)
+      ty    = TUnit
+      typed = map thd3 res
+  pure (subst, ty, typed)
+
 instance Typeable Expr where
   infer :: Expr 'Parsed -> TI (Subst, Type, Expr 'Typed)
   infer (LInt sp n)                  = pure (mempty, TInt, LInt (sp, TInt) n)
@@ -261,7 +272,7 @@ instance Typeable Expr where
 
     xs                      <- local (Map.union bindings) (mapM infer body)
     let s                   = foldMap fst3 xs <> sArgs
-    let bodyType            = last $ map snd3 xs
+    let bodyType            = fromMaybe TUnit (safeLast (map snd3 xs))
     _ <- traceM $ show $ map snd3 xs
     let fullType            = TFun (apply s argTypes) (apply s bodyType)
     let bodyAst             = map thd3 xs

@@ -20,7 +20,7 @@ import           Generic.Span                    (Span (Span))
 import           Generic.Triple                  (uncurry3)
 import           Parser.ArgumentParser           (funcArgs)
 import           Parser.TypeParser               (annotatedType)
-import           Text.Megaparsec                 (MonadParsec (label),
+import           Text.Megaparsec                 (MonadParsec (eof, label),
                                                   getSourcePos, satisfy,
                                                   sepEndBy)
 import qualified Text.Megaparsec.Char.Lexer      as L
@@ -181,3 +181,6 @@ parseFunction = do
     end  <- getSourcePos
     let sp = Span st end
     return $ VarDecl sp id' retT (Lambda sp args body)
+
+parseProgram :: Parser [Statement 'Parsed]
+parseProgram = many parseFunction <* eof

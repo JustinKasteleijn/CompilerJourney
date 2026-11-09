@@ -1,0 +1,12 @@
+fn repeat(n: int) {
+  var b: bool = true;
+  var res = 0;
+  while (n > 0) {
+    n = n - 1;
+  };
+  return n;
+}
+
+fn main() {
+
+}

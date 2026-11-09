@@ -1,7 +1,15 @@
+{-# LANGUAGE InstanceSigs #-}
+
 module Generic.DebugShow where
+
+import           Data.List (intersperse)
 
 class DebugShow a where
   debugShow :: a -> String
 
-debugPrint :: (DebugShow a) => a -> IO ()
+instance DebugShow a => DebugShow [a] where
+  debugShow :: [a] -> String
+  debugShow = mconcat . intersperse "\n" . map debugShow
+
+debugPrint :: (DebugShow a) => [a] -> IO ()
 debugPrint = putStrLn . debugShow

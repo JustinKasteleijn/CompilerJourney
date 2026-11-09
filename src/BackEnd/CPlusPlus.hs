@@ -67,6 +67,12 @@ parens = inBetween "(" ")"
 class CPlusPlus a where
   genCPlusPlus :: a -> CppGen
 
+instance CPlusPlus a => CPlusPlus [a] where
+  genCPlusPlus :: [a] -> CppGen
+  genCPlusPlus = sequence_
+    . intersperse (emit "\n")
+    . map genCPlusPlus
+
 instance CPlusPlus (Expr Typed) where
   genCPlusPlus :: Expr Typed -> CppGen
   genCPlusPlus (LInt _ n)                      = emit (show n)
