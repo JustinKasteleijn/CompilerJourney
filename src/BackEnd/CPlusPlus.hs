@@ -7,11 +7,13 @@
 module BackEnd.CPlusPlus where
 
 import           AST.Annotation              (Phase (..))
+import           AST.Argument                (isTVar)
 import           AST.Syntax                  (AnnotatedType (..), Expr (..),
                                               FuncArg (FuncArg), Ident (..),
                                               Statement (Assign, Return, VarDecl, While),
                                               annotatedTypeToType)
 import           AST.Type                    (Type (TBool, TChar, TFun, TInt, TTuple, TUnit, TVar))
+import           Control.Monad               (unless)
 import           Control.Monad.State.Strict  (MonadState (get), StateT,
                                               evalStateT, modify)
 import           Control.Monad.Writer.Strict (MonadWriter (tell), Writer,
@@ -137,14 +139,17 @@ instance CPlusPlus (Statement 'Typed) where
             emit ")")
         (mapM_ genCPlusPlus b)
     VarDecl (_, t) v _ (Lambda _ args body) ->
-      block
-        (do
-          genCPlusPlus t
-          emit " "
-          genCPlusPlus v
-          parens $
-            commaSep (map genCPlusPlus args))
-        (mapM_ genCPlusPlus body)
+      case t of
+        TVar _ -> pure ()
+        _      -> unless (any isTVar args) $
+                    block
+                      (do
+                        genCPlusPlus t
+                        emit " "
+                        genCPlusPlus v
+                        parens $
+                          commaSep (map genCPlusPlus args))
+                      (mapM_ genCPlusPlus body)
     Assign _ v _ e ->
       statement $ do
         genCPlusPlus v
