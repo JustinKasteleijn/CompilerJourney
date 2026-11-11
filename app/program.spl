@@ -4,8 +4,14 @@ fn repeat(n) {
   while (n > 0) {
     res = res + n;
     n = n - 1;
+    var lol = 5;
   };
   return res;
+}
+
+fn print(str: string) {
+    var s = repeat(1);
+    return s;
 }
 
 fn main() {

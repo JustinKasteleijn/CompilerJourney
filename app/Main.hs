@@ -2,11 +2,12 @@ module Main where
 
 import           BackEnd.CPlusPlus
 import           Generic.DebugShow
-import           Parser.ExprParser            (parseProgram)
-import           Parser.ParserBase            (runParser, runParserDebug)
-import           SemanticAnalysis.TypeChecker (infer, inferProgram,
-                                               runTypeChecker)
-import           SemanticAnalysis.EntryPointAnalysis (hasMainFunction, runEntryPointAnalysis)
+import           Parser.ExprParser                   (parseProgram)
+import           Parser.ParserBase                   (runParser, runParserDebug)
+import           SemanticAnalysis.EntryPointAnalysis (hasMainFunction,
+                                                      runEntryPointAnalysis)
+import           SemanticAnalysis.TypeChecker        (infer, inferProgram,
+                                                      runTypeChecker)
 
 main :: IO ()
 main = do
