@@ -63,6 +63,7 @@ library
                       , AST.Expr
                       , AST.Argument
                       , AST.Type
+                      , AST.Function
                       , AST.Annotation
 
                       , Parser.ExprParser
@@ -72,6 +73,7 @@ library
 
                       , SemanticAnalysis.TypeChecker
                       , SemanticAnalysis.EntryPointAnalysis
+                      , SemanticAnalysis.StronglyConnectedComponent
 
                       , BackEnd.CPlusPlus
 
