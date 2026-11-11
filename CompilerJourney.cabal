@@ -71,6 +71,7 @@ library
                       , Parser.ParserBase
 
                       , SemanticAnalysis.TypeChecker
+                      , SemanticAnalysis.EntryPointAnalysis
 
                       , BackEnd.CPlusPlus
 
