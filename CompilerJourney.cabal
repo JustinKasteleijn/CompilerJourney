@@ -65,6 +65,7 @@ library
                       , AST.Type
                       , AST.Function
                       , AST.Annotation
+                      , AST.HasIdentifier
 
                       , Parser.ExprParser
                       , Parser.ArgumentParser

@@ -169,7 +169,7 @@ instance CPlusPlus (Statement 'Typed) where
 
 instance CPlusPlus (FuncArg 'Typed) where
   genCPlusPlus :: FuncArg 'Typed -> CppGen
-  genCPlusPlus (FuncArg (_, t) v mt) = do
+  genCPlusPlus (FuncArg (_, t) (Ident _ v) mt) = do
     genCPlusPlus (maybe t annotatedTypeToType mt)
     emit $ " " ++ v
 

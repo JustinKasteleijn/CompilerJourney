@@ -1,17 +1,18 @@
+fn print() {
+    var s = repeat(1);
+    return s;
+}
+
+
 fn repeat(n) {
   var b = true;
   var res = 0;
   while (n > 0) {
     res = res + n;
     n = n - 1;
-    var lol = 5;
+    var what = 5;
   };
   return res;
-}
-
-fn print(str: string) {
-    var s = repeat(1);
-    return s;
 }
 
 fn main() {

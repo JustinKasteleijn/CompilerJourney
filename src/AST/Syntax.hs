@@ -8,6 +8,7 @@ module AST.Syntax where
 
 import           AST.Annotation      (Ann, Annotated (getAnn, setAnn),
                                       Phase (..), ShowAnn (showAnn))
+import           AST.HasIdentifier   (HasIdentifier (getIdentifier))
 import           AST.Type            (Type (TBool, TChar, TFun, TInt, TTuple, TVar))
 import           Data.List           (intercalate)
 import           Data.Proxy          (Proxy (..))
@@ -104,6 +105,20 @@ data UnaryOperator
   = Neg
   | Not
   deriving (Eq)
+
+instance HasIdentifier (Ident p) where
+  getIdentifier :: Ident p -> Maybe String
+  getIdentifier (Ident _ v) = Just v
+
+instance HasIdentifier (Expr p) where
+  getIdentifier :: Expr p -> Maybe String
+  getIdentifier _ = Nothing
+
+instance HasIdentifier (Statement p) where
+  getIdentifier :: Statement p -> Maybe String
+  getIdentifier (VarDecl _ n _ _) = getIdentifier n
+  getIdentifier (Assign _ n _ _)  = getIdentifier n
+  getIdentifier _                 = Nothing
 
 instance Show (Expr p) where
   showsPrec _ (LInt _ n) = shows n
@@ -332,7 +347,7 @@ instance ProgramShow AnnotatedType where
   programShow _ t = ": " ++ show t
 
 data FuncArg (p :: Phase)
-  = FuncArg (Ann p) String (Maybe AnnotatedType)
+  = FuncArg (Ann p) (Ident p) (Maybe AnnotatedType)
 
 instance Annotated FuncArg where
   getAnn :: FuncArg p -> Ann p
@@ -341,10 +356,14 @@ instance Annotated FuncArg where
   setAnn :: Ann p -> FuncArg p -> FuncArg p
   setAnn ann (FuncArg _ arg t) = FuncArg ann arg t
 
+instance HasIdentifier (FuncArg p) where
+  getIdentifier :: FuncArg p -> Maybe String
+  getIdentifier (FuncArg _ n _) = getIdentifier n
+
 instance Show (FuncArg p) where
   show :: FuncArg p -> String
-  show (FuncArg _ arg t) = maybe arg (\x -> arg ++ ": " ++ show x) t
+  show (FuncArg _ arg t) = maybe (show arg) (\x -> show arg ++ ": " ++ show x) t
 
 instance (ShowAnn p) => DebugShow (FuncArg p) where
   debugShow :: FuncArg p -> String
-  debugShow (FuncArg ann arg t) = "FuncArg(" ++ showAnn (Proxy @p) ann ++ " " ++ arg ++ ": " ++ show t ++")"
+  debugShow (FuncArg ann arg t) = "FuncArg(" ++ showAnn (Proxy @p) ann ++ " " ++ show arg ++ ": " ++ show t ++")"

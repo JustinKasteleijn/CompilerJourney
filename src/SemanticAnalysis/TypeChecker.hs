@@ -8,8 +8,8 @@ module SemanticAnalysis.TypeChecker where
 import           AST.Type
 
 import           AST.Annotation           (Phase (..))
-import           AST.Argument             (getFunctionArgumentName)
 import           AST.Expr                 (OperatorKind (..), kindOf)
+import           AST.HasIdentifier        (HasIdentifier (getIdentifier))
 import           AST.Syntax               (BinaryOperator (..), Expr (..),
                                            FuncArg (..), Ident (Ident),
                                            Statement (Assign, Return, VarDecl, While),
@@ -20,6 +20,7 @@ import           Control.Monad.RWS.Strict (MonadReader (ask, local), RWS,
                                            runRWS)
 import           Control.Monad.State
 import           Data.Char                (chr, ord)
+import           Data.Foldable            (Foldable (toList))
 import qualified Data.Map                 as Map
 import           Data.Maybe               (fromMaybe)
 import qualified Data.Set                 as Set
@@ -208,9 +209,12 @@ class Types (f 'Typed) => Typeable f where
     (s, ast) <- check x v
     pure (s, apply s v, apply s ast)
 
-inferProgram :: [Statement 'Parsed] -> TI (Subst, Type, [Statement 'Typed])
+inferProgram
+  :: Foldable f
+  => [f (Statement 'Parsed)]
+  -> TI (Subst, Type, [Statement 'Typed])
 inferProgram statements = do
-  (body, _, asts) <- inferStatements statements
+  (body, _, asts) <- inferStatements $ concatMap toList statements
   pure (body, TUnit, asts)
 
 instance Typeable Expr where
@@ -259,11 +263,15 @@ instance Typeable Expr where
         argTypes  = map snd3 argRes
         argAST    = map thd3 argRes
 
-    let bindings  =
-            Map.fromList
-            [ (getFunctionArgumentName arg, Forall [] ty)
-            | (arg, ty) <- zip args (map (apply sArgs) argTypes)
-            ]
+    bindings <- Map.fromList <$> traverse
+                   (\(arg, ty) -> do
+                       name <- maybe
+                         (throwError "Function argument has no identifier")
+                         pure
+                         (getIdentifier arg)
+                       pure (name, Forall [] ty)
+                      )
+                      (zip args (map (apply sArgs) argTypes))
 
     (sBody, types, asts) <- local (Map.union bindings) (inferStatements body)
     let s                = sBody <> sArgs
@@ -344,13 +352,13 @@ inferStatements (stmt:stmts) = do
 
 instance Typeable FuncArg where
   infer :: FuncArg 'Parsed -> TI (Subst, Type, FuncArg 'Typed)
-  infer (FuncArg sp name mt) = do
+  infer (FuncArg sp (Ident pos name) mt) = do
     tv <- newTypeVar
     case mt of
       Just t  -> do
         let expected = annotatedTypeToType t
         s            <- unify tv expected
         let t'       = apply s tv
-        pure (s, t', FuncArg (sp, t') name (Just t))
+        pure (s, t', FuncArg (sp, t') (Ident (pos, t') name) (Just t))
       Nothing -> do
-        pure (mempty, tv, FuncArg (sp, tv) name Nothing)
+        pure (mempty, tv, FuncArg (sp, tv) (Ident (pos, tv) name) Nothing)
