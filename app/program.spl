@@ -3,10 +3,15 @@ fn print() {
     return s;
 }
 
+fn id(n) {
+    return n;
+}
+
 
 fn repeat(n) {
   var b = true;
   var res = 0;
+  var r = id(6);
   while (n > 0) {
     res = res + n;
     n = n - 1;
@@ -17,4 +22,5 @@ fn repeat(n) {
 
 fn main() {
 
+  return 0;
 }

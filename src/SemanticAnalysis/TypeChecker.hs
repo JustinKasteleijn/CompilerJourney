@@ -344,7 +344,7 @@ inferStatements (stmt:stmts) = do
   let env'        = apply s env
       env''       = case stmt of
                       VarDecl _ (Ident _ name) _ _ ->
-                        Map.insert name (Forall [] (apply s t)) env'
+                        Map.insert name (generalize env' (apply s t)) env'
                       _ -> env'
   (s', ts, tstmt) <- local (const env'') (inferStatements stmts)
   let s''         = s' <> s
